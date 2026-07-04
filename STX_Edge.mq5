@@ -1162,3 +1162,315 @@ void DeleteAllObjects()
   }
 
 //+------------------------------------------------------------------+
+//|                                                                    |
+//|          PATTERN DETECTION AND MTF DATA RETRIEVAL                  |
+//|                                                                    |
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| UpdateSeq - Update sequence state for TBE (Trend Break Entry)     |
+//| Exact translation of f_update_seq from Pine Script                |
+//| Steps: 0=idle, 1=initial FU/X3, 2=in_zone, 3=counter,            |
+//|        4=second_in_zone, 5=completed (valid TBE)                  |
+//+------------------------------------------------------------------+
+void UpdateSeq(SeqState &seq, bool is_fu, bool is_x3, bool counter_fu,
+               bool counter_x3, double level, double body, int tf_minutes,
+               bool confirmed, bool is_bear, double p_h, double p_l,
+               int &out_step, bool &out_valid)
+  {
+//--- If not confirmed, return current step and false
+   if(!confirmed)
+     {
+      out_step  = seq.step;
+      out_valid = false;
+      return;
+     }
+
+//--- Calculate candles since start
+   int candles_since = 0;
+   if(seq.start_time != 0)
+     {
+      long elapsed_sec = (long)(TimeCurrent() - seq.start_time);
+      long tf_sec      = (long)tf_minutes * 60;
+      if(tf_sec > 0)
+         candles_since = (int)MathRound((double)elapsed_sec / (double)tf_sec);
+     }
+
+//--- Timeout: if step > 0 and step < 5 and candles_since > 5, reset
+   if(seq.step > 0 && seq.step < 5 && candles_since > 5)
+     {
+      seq.step       = 0;
+      seq.level      = 0.0;
+      seq.body       = 0.0;
+      seq.start_time = 0;
+     }
+
+   bool is_valid = false;
+
+//--- Step 5: completed pattern, reset
+   if(seq.step == 5)
+     {
+      seq.step       = 0;
+      seq.level      = 0.0;
+      seq.body       = 0.0;
+      seq.start_time = 0;
+     }
+//--- Step 4: waiting for FU to complete
+   else if(seq.step == 4)
+     {
+      bool broke_level = is_bear ? (p_h > seq.level) : (p_l < seq.level);
+      if(broke_level)
+        {
+         seq.step       = 0;
+         seq.level      = 0.0;
+         seq.body       = 0.0;
+         seq.start_time = 0;
+        }
+      else if(is_fu)
+        {
+         seq.step = 5;
+         is_valid = true;
+        }
+     }
+//--- Step 3: waiting for price to re-enter zone
+   else if(seq.step == 3)
+     {
+      bool broke_level = is_bear ? (p_h > seq.level) : (p_l < seq.level);
+      bool in_zone     = is_bear ? (p_h > seq.body && p_h < seq.level) :
+                                   (p_l < seq.body && p_l > seq.level);
+      if(broke_level)
+        {
+         seq.step       = 0;
+         seq.level      = 0.0;
+         seq.body       = 0.0;
+         seq.start_time = 0;
+        }
+      else if(in_zone)
+        {
+         seq.step = 4;
+        }
+     }
+//--- Step 2: waiting for counter FU or X3
+   else if(seq.step == 2)
+     {
+      bool broke_level = is_bear ? (p_h > seq.level) : (p_l < seq.level);
+      if(broke_level)
+        {
+         seq.step       = 0;
+         seq.level      = 0.0;
+         seq.body       = 0.0;
+         seq.start_time = 0;
+        }
+      else if(counter_fu || counter_x3)
+        {
+         seq.step = 3;
+        }
+     }
+//--- Step 1: waiting for price to enter zone, else reset
+   else if(seq.step == 1)
+     {
+      bool broke_level = is_bear ? (p_h > seq.level) : (p_l < seq.level);
+      bool in_zone     = is_bear ? (p_h >= seq.body && p_h <= seq.level) :
+                                   (p_l <= seq.body && p_l >= seq.level);
+      if(broke_level)
+        {
+         seq.step       = 0;
+         seq.level      = 0.0;
+         seq.body       = 0.0;
+         seq.start_time = 0;
+        }
+      else if(in_zone)
+        {
+         seq.step = 2;
+        }
+      else
+        {
+         seq.step       = 0;
+         seq.level      = 0.0;
+         seq.body       = 0.0;
+         seq.start_time = 0;
+        }
+     }
+
+//--- If (is_fu or is_x3) and step == 0, start new sequence
+   if((is_fu || is_x3) && seq.step == 0)
+     {
+      seq.step       = 1;
+      seq.level      = level;
+      seq.body       = body;
+      seq.start_time = TimeCurrent();
+     }
+
+   out_step  = seq.step;
+   out_valid = is_valid;
+  }
+
+//+------------------------------------------------------------------+
+//| CalculatePatterns - Detect all patterns for a timeframe bar       |
+//| Exact translation of f_calculate_patterns from Pine Script        |
+//| Parameters: idx = TF index, p_o2..p_c2 = bar[2] OHLC,           |
+//|   p_o1..p_c1 = bar[1] OHLC, p_o..p_c = bar[0] OHLC,            |
+//|   p_t = bar time, p_conf = bar confirmed                          |
+//+------------------------------------------------------------------+
+void CalculatePatterns(int idx, double p_o2, double p_h2, double p_l2, double p_c2,
+                       double p_o1, double p_h1, double p_l1, double p_c1,
+                       double p_o, double p_h, double p_l, double p_c,
+                       datetime p_t, bool p_conf)
+  {
+//--- Validate data (equivalent of not na() checks in Pine)
+   bool valid_data   = (p_h != 0.0 && p_l != 0.0 && p_c != 0.0 && p_o != 0.0);
+   bool valid_data_1 = (p_h1 != 0.0 && p_l1 != 0.0 && p_c1 != 0.0 && p_o1 != 0.0);
+   bool valid_data_2 = (p_h2 != 0.0 && p_l2 != 0.0 && p_c2 != 0.0 && p_o2 != 0.0);
+
+//--- Both wicks detection (current and previous bar)
+   bool both_sides   = valid_data   ? HasBothWicks(p_o, p_h, p_l, p_c)     : false;
+   bool both_sides_1 = valid_data_1 ? HasBothWicks(p_o1, p_h1, p_l1, p_c1) : false;
+
+//--- Body top/bottom
+   double body_top    = valid_data ? MathMax(p_o, p_c) : 0.0;
+   double body_bottom = valid_data ? MathMin(p_o, p_c) : 0.0;
+
+//--- Inside bar detection
+   bool is_ib = (valid_data && valid_data_1) ? IsInsideBar(p_h, p_l, p_h1, p_l1) : false;
+
+//--- X3 detection (engulfing with both wicks)
+   bool bear_x3 = valid_data && valid_data_1 && p_h > p_h1 && p_l < p_l1 && both_sides && p_c < p_o;
+   bool bull_x3 = valid_data && valid_data_1 && p_h > p_h1 && p_l < p_l1 && both_sides && p_c > p_o;
+   bool is_x3   = bear_x3 || bull_x3;
+
+//--- X3 on previous bar (bar[1] vs bar[2])
+   bool bear_x3_1 = (valid_data_1 && valid_data_2) ? (p_h1 > p_h2 && p_l1 < p_l2 && both_sides_1 && p_c1 < p_o1) : false;
+   bool bull_x3_1 = (valid_data_1 && valid_data_2) ? (p_h1 > p_h2 && p_l1 < p_l2 && both_sides_1 && p_c1 > p_o1) : false;
+   bool is_x3_1   = bear_x3_1 || bull_x3_1;
+
+//--- SN (Sniper) detection - engulfing wicks but body inside previous range
+   bool sn_bull = p_h > p_h1 && p_l < p_l1 && MathMax(p_o, p_c) < p_h1 && MathMin(p_o, p_c) > p_l1 && p_o < p_c;
+   bool sn_bear = p_h > p_h1 && p_l < p_l1 && MathMin(p_o, p_c) > p_l1 && MathMax(p_o, p_c) < p_h1 && p_o > p_c;
+   bool sn_together = (sn_bull || sn_bear) && !is_x3;
+
+//--- SN on previous bar (bar[1] vs bar[2])
+   bool sn_bull_candle_1 = p_h1 > p_h2 && p_l1 < p_l2 && p_c1 > p_o1 && MathMax(p_o1, p_c1) < p_h2;
+   bool sn_bear_candle_1 = p_h1 > p_h2 && p_l1 < p_l2 && p_c1 < p_o1 && MathMin(p_o1, p_c1) > p_l2;
+   bool sn_together_1 = (sn_bull_candle_1 || sn_bear_candle_1) && !is_x3_1;
+
+//--- LAOL first detection
+   bool bull_laol_first = valid_data && valid_data_1 && valid_data_2 &&
+                          p_l1 == MathMin(p_o1, p_c1) && p_h1 < p_h2 && p_h < p_h1 && p_l < p_l1;
+   bool bear_laol_first = valid_data && valid_data_1 && valid_data_2 &&
+                          p_h1 == MathMax(p_o1, p_c1) && p_l1 > p_l2 && p_l > p_l1 && p_h > p_h1;
+
+//--- First EM (Extreme Move) - previous bar was X3/SN and current bar extends beyond it
+   bool bear_first_em = (bull_x3_1 || sn_together_1) && p_h > p_h1 && p_l > p_l1;
+   bool bull_first_em = (bear_x3_1 || sn_together_1) && p_l < p_l1 && p_h < p_h1;
+
+//--- LAOL candle (inside bar for LAOL purposes)
+   bool bear_laol_candle = is_ib;
+   bool bull_laol_candle = is_ib;
+
+//--- FU (Fakeout) detection
+   bool fu_bear_em = valid_data && valid_data_1 && p_h > p_h1 && p_c < p_h1 && p_c > p_l1 && !is_x3 && !sn_together;
+   bool fu_bull_em = valid_data && valid_data_1 && p_l < p_l1 && p_c > p_l1 && p_c < p_h1 && !is_x3 && !sn_together;
+
+//--- Set all detection arrays
+   arr_fu_bear[idx]         = fu_bear_em;
+   arr_fu_bull[idx]         = fu_bull_em;
+   arr_sn_bear[idx]         = sn_bear;
+   arr_sn_bull[idx]         = sn_bull;
+   arr_first_bear[idx]      = bear_first_em;
+   arr_first_bull[idx]      = bull_first_em;
+   arr_laol_bear[idx]       = bear_laol_first;
+   arr_laol_bull[idx]       = bull_laol_first;
+   arr_laol_first_bear[idx] = bear_laol_first;
+   arr_laol_first_bull[idx] = bull_laol_first;
+   arr_tf_h[idx]            = p_h;
+   arr_tf_l[idx]            = p_l;
+   arr_tf_bt[idx]           = body_top;
+   arr_tf_bb[idx]           = body_bottom;
+   arr_tf_t[idx]            = p_t;
+   arr_tf_conf[idx]         = p_conf;
+   arr_laol_candle_bear[idx] = bear_laol_candle;
+   arr_laol_candle_bull[idx] = bull_laol_candle;
+  }
+
+//+------------------------------------------------------------------+
+//| GetTFData - Retrieve OHLCT data for a specific timeframe          |
+//| Returns bars [2], [1], [0] and confirmation status                |
+//| In Pine Script, request.security with barstate.isconfirmed gives  |
+//| confirmed=true when the bar has just closed. In MT5, we detect    |
+//| this by checking if the bar time changed (new bar opened).        |
+//+------------------------------------------------------------------+
+void GetTFData(int tf_idx, double &o2, double &h2, double &l2, double &c2,
+               double &o1, double &h1, double &l1, double &c1,
+               double &o0, double &h0, double &l0, double &c0,
+               datetime &t0, bool &is_confirmed)
+  {
+   ENUM_TIMEFRAMES tf = GetTimeframe(TF_MINUTES[tf_idx]);
+
+//--- Bar [2] data (two bars ago)
+   o2 = iOpen(_Symbol, tf, 2);
+   h2 = iHigh(_Symbol, tf, 2);
+   l2 = iLow(_Symbol, tf, 2);
+   c2 = iClose(_Symbol, tf, 2);
+
+//--- Bar [1] data (previous bar)
+   o1 = iOpen(_Symbol, tf, 1);
+   h1 = iHigh(_Symbol, tf, 1);
+   l1 = iLow(_Symbol, tf, 1);
+   c1 = iClose(_Symbol, tf, 1);
+
+//--- Bar [0] data (current bar)
+   o0 = iOpen(_Symbol, tf, 0);
+   h0 = iHigh(_Symbol, tf, 0);
+   l0 = iLow(_Symbol, tf, 0);
+   c0 = iClose(_Symbol, tf, 0);
+
+//--- Current bar time
+   t0 = iTime(_Symbol, tf, 0);
+
+//--- Check if a new bar has formed (confirming the previous bar)
+//--- In Pine Script, barstate.isconfirmed is true when current bar is closed.
+//--- In MT5, when iTime changes, a new bar has opened meaning the bar at shift=1
+//--- is now the last confirmed bar. We detect this change to signal confirmation.
+   if(t0 != g_prev_tf_time[tf_idx])
+     {
+      is_confirmed = true;
+      g_prev_tf_time[tf_idx] = t0;
+     }
+   else
+     {
+      is_confirmed = false;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| RetrieveAllTFData - Get data and calculate patterns for all TFs   |
+//| Calls GetTFData for each timeframe then CalculatePatterns.        |
+//| For INTRA timeframes (idx 16-24), only process if InpSoftStart.   |
+//+------------------------------------------------------------------+
+void RetrieveAllTFData()
+  {
+   double o2, h2, l2, c2;
+   double o1, h1, l1, c1;
+   double o0, h0, l0, c0;
+   datetime t0;
+   bool is_conf;
+
+//--- Process all ENTRY and SCALP timeframes (idx 0-15)
+   for(int i = 0; i <= 15; i++)
+     {
+      GetTFData(i, o2, h2, l2, c2, o1, h1, l1, c1, o0, h0, l0, c0, t0, is_conf);
+      CalculatePatterns(i, o2, h2, l2, c2, o1, h1, l1, c1, o0, h0, l0, c0, t0, is_conf);
+     }
+
+//--- Process INTRA timeframes (idx 16-24) only if soft_start is enabled
+   if(InpSoftStart)
+     {
+      for(int i = INTRA_MIN_IDX; i <= INTRA_MAX_IDX; i++)
+        {
+         GetTFData(i, o2, h2, l2, c2, o1, h1, l1, c1, o0, h0, l0, c0, t0, is_conf);
+         CalculatePatterns(i, o2, h2, l2, c2, o1, h1, l1, c1, o0, h0, l0, c0, t0, is_conf);
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
