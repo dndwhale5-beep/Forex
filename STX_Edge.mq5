@@ -522,3 +522,643 @@ datetime g_prev_tf_time[TF_COUNT];   // For bar confirmation tracking
 double   g_pip_value   = 0.0;        // Pip value (syminfo.mintick * 10 equivalent)
 
 //+------------------------------------------------------------------+
+//|                                                                    |
+//|                 HELPER / UTILITY FUNCTIONS                         |
+//|                                                                    |
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| GenerateObjName - Create unique object name with prefix           |
+//+------------------------------------------------------------------+
+string GenerateObjName(string prefix)
+  {
+   g_obj_counter++;
+   return prefix + "_" + IntegerToString(g_obj_counter);
+  }
+
+//+------------------------------------------------------------------+
+//| FormatTFLabel - Convert minutes to display label (e.g. "5m","1H") |
+//+------------------------------------------------------------------+
+string FormatTFLabel(int minutes)
+  {
+   if(minutes >= 60 && minutes % 60 == 0)
+      return IntegerToString(minutes / 60) + "H";
+   else
+      return IntegerToString(minutes) + "m";
+  }
+
+//+------------------------------------------------------------------+
+//| IsEntry - Check if timeframe is entry category (1-5 minutes)      |
+//+------------------------------------------------------------------+
+bool IsEntry(int minutes)
+  {
+   return (minutes >= 1 && minutes <= 5);
+  }
+
+//+------------------------------------------------------------------+
+//| GetFullCategory - Return category string based on minutes         |
+//+------------------------------------------------------------------+
+string GetFullCategory(int minutes)
+  {
+   if(minutes >= 1 && minutes <= 5)
+      return "ENTRY";
+   else if(minutes >= 6 && minutes <= 20)
+      return "SCALP";
+   else if(minutes >= 30 && minutes <= 120)
+      return "INTRA";
+   else
+      return "NONE";
+  }
+
+//+------------------------------------------------------------------+
+//| PatternStr - Build pattern string from booleans                   |
+//| Matches f_pattern_str in Pine Script exactly                      |
+//+------------------------------------------------------------------+
+string PatternStr(bool is_bear, bool third, bool first, bool laol, bool sn, bool sn_dbl, bool fu, bool tbe, bool hcs, bool hcs_forming)
+  {
+   string result = "";
+
+   if(third)
+      result = "X3 Third";
+
+   if(first)
+     {
+      if(result == "")
+         result = "X3 First";
+      else
+         result = result + " + X3 First";
+     }
+
+   if(laol)
+     {
+      if(result == "")
+         result = "LAOL Neg";
+      else
+         result = result + " + LAOL Neg";
+     }
+
+   if(sn)
+     {
+      string sn_txt = sn_dbl ? "SN [EM]" : "SN";
+      if(result == "")
+         result = sn_txt;
+      else
+         result = result + " + " + sn_txt;
+     }
+
+   if(fu)
+     {
+      string fu_txt = tbe ? "FU [TBE]" : "FU";
+      if(result == "")
+         result = fu_txt;
+      else
+         result = result + " + " + fu_txt;
+     }
+
+   if(hcs)
+     {
+      if(result == "")
+         result = "[HCS]";
+      else
+         result = result + " + [HCS]";
+     }
+   else if(hcs_forming)
+     {
+      if(result == "")
+         result = "[HCS]";
+      else
+         result = result + " + [HCS]";
+     }
+
+   if(result != "")
+      return (is_bear ? "Bear " : "Bull ") + result;
+   else
+      return "";
+  }
+
+//+------------------------------------------------------------------+
+//| IsFuPattern - Check if pattern is FU-type (FU or SN without EM)  |
+//| Matches f_is_fu_pattern in Pine Script                            |
+//+------------------------------------------------------------------+
+bool IsFuPattern(string pattern)
+  {
+   if(pattern == "")
+      return false;
+
+   bool has_fu = (StringFind(pattern, "FU") >= 0);
+   bool has_sn = (StringFind(pattern, "SN") >= 0);
+   bool has_em_modifier = (StringFind(pattern, "HCS") >= 0) ||
+                          (StringFind(pattern, "Third") >= 0) ||
+                          (StringFind(pattern, "First") >= 0) ||
+                          (StringFind(pattern, "LAOL") >= 0) ||
+                          (StringFind(pattern, "TBE") >= 0);
+
+   return (has_fu || has_sn) && !has_em_modifier;
+  }
+
+//+------------------------------------------------------------------+
+//| IsEmPattern - Check if pattern is EM-type                         |
+//| Matches f_is_em_pattern in Pine Script                            |
+//+------------------------------------------------------------------+
+bool IsEmPattern(string pattern)
+  {
+   if(pattern == "")
+      return false;
+
+   return (StringFind(pattern, "HCS") >= 0) ||
+          (StringFind(pattern, "Third") >= 0) ||
+          (StringFind(pattern, "First") >= 0) ||
+          (StringFind(pattern, "LAOL") >= 0) ||
+          (StringFind(pattern, "TBE") >= 0) ||
+          (StringFind(pattern, "[EM]") >= 0);
+  }
+
+//+------------------------------------------------------------------+
+//| HasBothWicks - Check if candle has both upper and lower wicks     |
+//+------------------------------------------------------------------+
+bool HasBothWicks(double o, double h, double l, double c)
+  {
+   return (MathMax(o, c) < h) && (MathMin(o, c) > l);
+  }
+
+//+------------------------------------------------------------------+
+//| IsInsideBar - Check if bar is inside the previous bar             |
+//+------------------------------------------------------------------+
+bool IsInsideBar(double p_h, double p_l, double p_h1, double p_l1)
+  {
+   return (p_h < p_h1) && (p_l > p_l1);
+  }
+
+//+------------------------------------------------------------------+
+//| BullishIBConfirmation - Bullish inside bar confirmation           |
+//+------------------------------------------------------------------+
+bool BullishIBConfirmation(double p_o1, double p_h1, double p_l1, double p_c1)
+  {
+   return (MathMin(p_o1, p_c1) - p_l1) > (p_h1 - MathMax(p_o1, p_c1));
+  }
+
+//+------------------------------------------------------------------+
+//| BearishIBConfirmation - Bearish inside bar confirmation           |
+//+------------------------------------------------------------------+
+bool BearishIBConfirmation(double p_o1, double p_h1, double p_l1, double p_c1)
+  {
+   return (p_h1 - MathMax(p_o1, p_c1)) > (MathMin(p_o1, p_c1) - p_l1);
+  }
+
+//+------------------------------------------------------------------+
+//| CreateRectangleObj - Create rectangle on chart with all props     |
+//+------------------------------------------------------------------+
+void CreateRectangleObj(string name, datetime time1, double price1,
+                        datetime time2, double price2, color clr_border,
+                        color clr_fill, int border_style, int border_width,
+                        bool fill, string text = "")
+  {
+   ObjectCreate(0, name, OBJ_RECTANGLE, 0, time1, price1, time2, price2);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr_border);
+   ObjectSetInteger(0, name, OBJPROP_STYLE, border_style);
+   ObjectSetInteger(0, name, OBJPROP_WIDTH, border_width);
+   ObjectSetInteger(0, name, OBJPROP_FILL, fill);
+   ObjectSetInteger(0, name, OBJPROP_BACK, true);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+
+   if(fill)
+      ObjectSetInteger(0, name, OBJPROP_BGCOLOR, clr_fill);
+
+   if(text != "")
+      ObjectSetString(0, name, OBJPROP_TEXT, text);
+  }
+
+//+------------------------------------------------------------------+
+//| UpdateRectCoords - Update existing rectangle coordinates          |
+//+------------------------------------------------------------------+
+void UpdateRectCoords(string name, datetime time1, double price1,
+                      datetime time2, double price2)
+  {
+   ObjectSetInteger(0, name, OBJPROP_TIME, 0, time1);
+   ObjectSetDouble(0, name, OBJPROP_PRICE, 0, price1);
+   ObjectSetInteger(0, name, OBJPROP_TIME, 1, time2);
+   ObjectSetDouble(0, name, OBJPROP_PRICE, 1, price2);
+  }
+
+//+------------------------------------------------------------------+
+//| SetRectBorderStyle - Change rectangle border style and color      |
+//+------------------------------------------------------------------+
+void SetRectBorderStyle(string name, int style, color clr)
+  {
+   ObjectSetInteger(0, name, OBJPROP_STYLE, style);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+  }
+
+//+------------------------------------------------------------------+
+//| CreateTrendLineObj - Create trend line on chart                   |
+//+------------------------------------------------------------------+
+void CreateTrendLineObj(string name, datetime time1, double price1,
+                        datetime time2, double price2, color clr,
+                        int style, int width)
+  {
+   ObjectCreate(0, name, OBJ_TREND, 0, time1, price1, time2, price2);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_STYLE, style);
+   ObjectSetInteger(0, name, OBJPROP_WIDTH, width);
+   ObjectSetInteger(0, name, OBJPROP_RAY_RIGHT, false);
+   ObjectSetInteger(0, name, OBJPROP_BACK, true);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+  }
+
+//+------------------------------------------------------------------+
+//| CreateTextObj - Create text label at specific coordinates         |
+//+------------------------------------------------------------------+
+void CreateTextObj(string name, datetime time1, double price1,
+                   string text, color clr, int font_size = 8)
+  {
+   ObjectCreate(0, name, OBJ_TEXT, 0, time1, price1);
+   ObjectSetString(0, name, OBJPROP_TEXT, text);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, font_size);
+   ObjectSetString(0, name, OBJPROP_FONT, "Arial");
+   ObjectSetInteger(0, name, OBJPROP_ANCHOR, ANCHOR_LEFT);
+   ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
+   ObjectSetInteger(0, name, OBJPROP_HIDDEN, true);
+  }
+
+//+------------------------------------------------------------------+
+//| DeleteObj - Delete a single object by name                        |
+//+------------------------------------------------------------------+
+void DeleteObj(string name)
+  {
+   if(name != "")
+      ObjectDelete(0, name);
+  }
+
+//+------------------------------------------------------------------+
+//| TimeAgoStr - Convert elapsed time to readable string              |
+//| Matches f_time_ago in Pine Script                                 |
+//+------------------------------------------------------------------+
+string TimeAgoStr(datetime past_time)
+  {
+   if(past_time == 0)
+      return "";
+
+   long elapsed_sec = (long)(TimeCurrent() - past_time);
+   long elapsed_min = elapsed_sec / 60;
+
+   if(elapsed_min < 1)
+      return " (<1m ago)";
+   else if(elapsed_min < 60)
+      return " (" + IntegerToString(elapsed_min) + "m ago)";
+   else if(elapsed_min < 1440)
+     {
+      long hours = elapsed_min / 60;
+      long mins  = elapsed_min % 60;
+      if(mins > 0)
+         return " (" + IntegerToString(hours) + "h" + IntegerToString(mins) + "m ago)";
+      else
+         return " (" + IntegerToString(hours) + "h ago)";
+     }
+   else
+     {
+      long days = elapsed_min / 1440;
+      return " (" + IntegerToString(days) + "d ago)";
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| PushUniqueStr - Add string to array only if not duplicate         |
+//| Returns true if added, false if duplicate                         |
+//+------------------------------------------------------------------+
+bool PushUniqueStr(string &arr[], int &count, int max_size, string txt)
+  {
+   for(int i = 0; i < count; i++)
+     {
+      if(arr[i] == txt)
+         return false;
+     }
+   if(count < max_size)
+     {
+      arr[count] = txt;
+      count++;
+      return true;
+     }
+   return false;
+  }
+
+//+------------------------------------------------------------------+
+//| CheckBreak - Check if last valid level is broken                  |
+//| Matches f_check_break in Pine Script                              |
+//+------------------------------------------------------------------+
+void CheckBreak(LastValidInfo &lv, double h, double l)
+  {
+   if(lv.original_text != "None" && lv.original_text != "" && lv.level != 0.0)
+     {
+      if(lv.direction == "bear" && h > lv.level)
+        {
+         lv.pattern_text = "BROKEN (was " + lv.original_text + ")";
+         lv.is_broken = true;
+        }
+      if(lv.direction == "bull" && l < lv.level)
+        {
+         lv.pattern_text = "BROKEN (was " + lv.original_text + ")";
+         lv.is_broken = true;
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| ResolveLastValid - Determine which last valid to display          |
+//| Matches f_resolve_last_valid in Pine Script                       |
+//+------------------------------------------------------------------+
+void ResolveLastValid(LastValidInfo &bear_lv, LastValidInfo &bull_lv,
+                      string &lv_text, string &lv_dir,
+                      string &lv_orig_dir, bool &lv_broken)
+  {
+   lv_text     = "None";
+   lv_dir      = "";
+   lv_orig_dir = "";
+   lv_broken   = false;
+
+   if(bear_lv.est_time > 0 || bull_lv.est_time > 0)
+     {
+      if(bear_lv.est_time > bull_lv.est_time)
+        {
+         lv_text     = bear_lv.pattern_text + TimeAgoStr(bear_lv.est_time);
+         lv_dir      = bear_lv.is_broken ? "bull" : "bear";
+         lv_orig_dir = "bear";
+         lv_broken   = bear_lv.is_broken;
+        }
+      else
+        {
+         lv_text     = bull_lv.pattern_text + TimeAgoStr(bull_lv.est_time);
+         lv_dir      = bull_lv.is_broken ? "bear" : "bull";
+         lv_orig_dir = "bull";
+         lv_broken   = bull_lv.is_broken;
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| FindNextExtremeCandle - Find extreme candle beyond SL level       |
+//| Matches f_find_next_extreme_candle in Pine Script                 |
+//+------------------------------------------------------------------+
+double FindNextExtremeCandle(string direction, double original_sl, int lookback = 500)
+  {
+   double extreme_level = 0.0;
+
+   if(direction == "bear")
+     {
+      for(int i = 1; i <= lookback; i++)
+        {
+         if(iHigh(NULL, PERIOD_CURRENT, i) > original_sl)
+           {
+            extreme_level = iHigh(NULL, PERIOD_CURRENT, i);
+            break;
+           }
+        }
+     }
+   else
+     {
+      for(int i = 1; i <= lookback; i++)
+        {
+         if(iLow(NULL, PERIOD_CURRENT, i) < original_sl)
+           {
+            extreme_level = iLow(NULL, PERIOD_CURRENT, i);
+            break;
+           }
+        }
+     }
+
+   return extreme_level;
+  }
+
+//+------------------------------------------------------------------+
+//| GetTFBoxesCount - Get the count for a specific TF box array       |
+//+------------------------------------------------------------------+
+int GetTFBoxesCount(int tf_idx)
+  {
+   switch(tf_idx)
+     {
+      case 0:  return tf1_boxes_count;
+      case 1:  return tf2_boxes_count;
+      case 2:  return tf3_boxes_count;
+      case 3:  return tf4_boxes_count;
+      case 4:  return tf5_boxes_count;
+      case 5:  return tf6_boxes_count;
+      case 6:  return tf7_boxes_count;
+      case 7:  return tf8_boxes_count;
+      case 8:  return tf9_boxes_count;
+      case 9:  return tf10_boxes_count;
+      case 10: return tf11_boxes_count;
+      case 11: return tf12_boxes_count;
+      case 12: return tf13_boxes_count;
+      case 13: return tf14_boxes_count;
+      case 14: return tf15_boxes_count;
+      case 15: return tf16_boxes_count;
+      case 16: return tf17_boxes_count;
+      case 17: return tf18_boxes_count;
+      case 18: return tf19_boxes_count;
+      case 19: return tf20_boxes_count;
+      case 20: return tf21_boxes_count;
+      case 21: return tf22_boxes_count;
+      case 22: return tf23_boxes_count;
+      case 23: return tf24_boxes_count;
+      case 24: return tf25_boxes_count;
+      default: return 0;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| SetTFBoxesCount - Set the count for a specific TF box array       |
+//+------------------------------------------------------------------+
+void SetTFBoxesCount(int tf_idx, int value)
+  {
+   switch(tf_idx)
+     {
+      case 0:  tf1_boxes_count  = value; break;
+      case 1:  tf2_boxes_count  = value; break;
+      case 2:  tf3_boxes_count  = value; break;
+      case 3:  tf4_boxes_count  = value; break;
+      case 4:  tf5_boxes_count  = value; break;
+      case 5:  tf6_boxes_count  = value; break;
+      case 6:  tf7_boxes_count  = value; break;
+      case 7:  tf8_boxes_count  = value; break;
+      case 8:  tf9_boxes_count  = value; break;
+      case 9:  tf10_boxes_count = value; break;
+      case 10: tf11_boxes_count = value; break;
+      case 11: tf12_boxes_count = value; break;
+      case 12: tf13_boxes_count = value; break;
+      case 13: tf14_boxes_count = value; break;
+      case 14: tf15_boxes_count = value; break;
+      case 15: tf16_boxes_count = value; break;
+      case 16: tf17_boxes_count = value; break;
+      case 17: tf18_boxes_count = value; break;
+      case 18: tf19_boxes_count = value; break;
+      case 19: tf20_boxes_count = value; break;
+      case 20: tf21_boxes_count = value; break;
+      case 21: tf22_boxes_count = value; break;
+      case 22: tf23_boxes_count = value; break;
+      case 23: tf24_boxes_count = value; break;
+      case 24: tf25_boxes_count = value; break;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| GetTFBox - Get a TrackedBox by TF index and box index             |
+//+------------------------------------------------------------------+
+void GetTFBox(int tf_idx, int box_idx, TrackedBox &box)
+  {
+   switch(tf_idx)
+     {
+      case 0:  box = tf1_boxes[box_idx];  break;
+      case 1:  box = tf2_boxes[box_idx];  break;
+      case 2:  box = tf3_boxes[box_idx];  break;
+      case 3:  box = tf4_boxes[box_idx];  break;
+      case 4:  box = tf5_boxes[box_idx];  break;
+      case 5:  box = tf6_boxes[box_idx];  break;
+      case 6:  box = tf7_boxes[box_idx];  break;
+      case 7:  box = tf8_boxes[box_idx];  break;
+      case 8:  box = tf9_boxes[box_idx];  break;
+      case 9:  box = tf10_boxes[box_idx]; break;
+      case 10: box = tf11_boxes[box_idx]; break;
+      case 11: box = tf12_boxes[box_idx]; break;
+      case 12: box = tf13_boxes[box_idx]; break;
+      case 13: box = tf14_boxes[box_idx]; break;
+      case 14: box = tf15_boxes[box_idx]; break;
+      case 15: box = tf16_boxes[box_idx]; break;
+      case 16: box = tf17_boxes[box_idx]; break;
+      case 17: box = tf18_boxes[box_idx]; break;
+      case 18: box = tf19_boxes[box_idx]; break;
+      case 19: box = tf20_boxes[box_idx]; break;
+      case 20: box = tf21_boxes[box_idx]; break;
+      case 21: box = tf22_boxes[box_idx]; break;
+      case 22: box = tf23_boxes[box_idx]; break;
+      case 23: box = tf24_boxes[box_idx]; break;
+      case 24: box = tf25_boxes[box_idx]; break;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| SetTFBox - Set a TrackedBox by TF index and box index             |
+//+------------------------------------------------------------------+
+void SetTFBox(int tf_idx, int box_idx, TrackedBox &box)
+  {
+   switch(tf_idx)
+     {
+      case 0:  tf1_boxes[box_idx]  = box; break;
+      case 1:  tf2_boxes[box_idx]  = box; break;
+      case 2:  tf3_boxes[box_idx]  = box; break;
+      case 3:  tf4_boxes[box_idx]  = box; break;
+      case 4:  tf5_boxes[box_idx]  = box; break;
+      case 5:  tf6_boxes[box_idx]  = box; break;
+      case 6:  tf7_boxes[box_idx]  = box; break;
+      case 7:  tf8_boxes[box_idx]  = box; break;
+      case 8:  tf9_boxes[box_idx]  = box; break;
+      case 9:  tf10_boxes[box_idx] = box; break;
+      case 10: tf11_boxes[box_idx] = box; break;
+      case 11: tf12_boxes[box_idx] = box; break;
+      case 12: tf13_boxes[box_idx] = box; break;
+      case 13: tf14_boxes[box_idx] = box; break;
+      case 14: tf15_boxes[box_idx] = box; break;
+      case 15: tf16_boxes[box_idx] = box; break;
+      case 16: tf17_boxes[box_idx] = box; break;
+      case 17: tf18_boxes[box_idx] = box; break;
+      case 18: tf19_boxes[box_idx] = box; break;
+      case 19: tf20_boxes[box_idx] = box; break;
+      case 20: tf21_boxes[box_idx] = box; break;
+      case 21: tf22_boxes[box_idx] = box; break;
+      case 22: tf23_boxes[box_idx] = box; break;
+      case 23: tf24_boxes[box_idx] = box; break;
+      case 24: tf25_boxes[box_idx] = box; break;
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| AddTFBox - Add a TrackedBox to the specified TF array             |
+//| Returns the index of the new box, or -1 if full                   |
+//+------------------------------------------------------------------+
+int AddTFBox(int tf_idx, TrackedBox &box)
+  {
+   int count = GetTFBoxesCount(tf_idx);
+   if(count >= MAX_BOXES)
+      return -1;
+
+   SetTFBox(tf_idx, count, box);
+   SetTFBoxesCount(tf_idx, count + 1);
+   return count;
+  }
+
+//+------------------------------------------------------------------+
+//| RemoveTFBox - Remove TrackedBox at index, shift remaining down    |
+//+------------------------------------------------------------------+
+void RemoveTFBox(int tf_idx, int box_idx)
+  {
+   int count = GetTFBoxesCount(tf_idx);
+   if(box_idx < 0 || box_idx >= count)
+      return;
+
+   TrackedBox temp;
+   for(int i = box_idx; i < count - 1; i++)
+     {
+      GetTFBox(tf_idx, i + 1, temp);
+      SetTFBox(tf_idx, i, temp);
+     }
+   SetTFBoxesCount(tf_idx, count - 1);
+  }
+
+//+------------------------------------------------------------------+
+//| RemoveLaolLine - Remove LaolLineData at index, shift remaining    |
+//+------------------------------------------------------------------+
+void RemoveLaolLine(LaolLineData &arr[], int &count, int idx)
+  {
+   if(idx < 0 || idx >= count)
+      return;
+
+   for(int i = idx; i < count - 1; i++)
+      arr[i] = arr[i + 1];
+
+   count--;
+  }
+
+//+------------------------------------------------------------------+
+//| RemoveHcsBox - Remove HcsBoxData at index, shift remaining        |
+//+------------------------------------------------------------------+
+void RemoveHcsBox(HcsBoxData &arr[], int &count, int idx)
+  {
+   if(idx < 0 || idx >= count)
+      return;
+
+   for(int i = idx; i < count - 1; i++)
+      arr[i] = arr[i + 1];
+
+   count--;
+  }
+
+//+------------------------------------------------------------------+
+//| RemoveRrBox - Remove RrBoxSet at index, shift remaining           |
+//+------------------------------------------------------------------+
+void RemoveRrBox(RrBoxSet &arr[], int &count, int idx)
+  {
+   if(idx < 0 || idx >= count)
+      return;
+
+   for(int i = idx; i < count - 1; i++)
+      arr[i] = arr[i + 1];
+
+   count--;
+  }
+
+//+------------------------------------------------------------------+
+//| DeleteAllObjects - Clean up all STX objects on deinit              |
+//+------------------------------------------------------------------+
+void DeleteAllObjects()
+  {
+   int total = ObjectsTotal(0, 0, -1);
+   for(int i = total - 1; i >= 0; i--)
+     {
+      string name = ObjectName(0, i, 0, -1);
+      if(StringFind(name, "STX_") == 0)
+         ObjectDelete(0, name);
+     }
+  }
+
+//+------------------------------------------------------------------+
