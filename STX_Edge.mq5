@@ -53,14 +53,14 @@ ENUM_TIMEFRAMES GetTimeframe(int minutes)
       case 4:   return PERIOD_M4;
       case 5:   return PERIOD_M5;
       case 6:   return PERIOD_M6;
-      case 7:   return PERIOD_M7; // Note: M7 not standard, using custom
-      case 8:   return PERIOD_M8; // Note: M8 not standard
-      case 9:   return PERIOD_M9; // Note: M9 not standard
+      case 7:   return PERIOD_M6; // M7 not standard, using M6
+      case 8:   return PERIOD_M6; // M8 not standard, using M6
+      case 9:   return PERIOD_M10; // M9 not standard, using M10
       case 10:  return PERIOD_M10;
-      case 11:  return PERIOD_M11; // Note: M11 not standard
+      case 11:  return PERIOD_M10; // M11 not standard, using M10
       case 12:  return PERIOD_M12;
-      case 13:  return PERIOD_M13; // Note: custom
-      case 14:  return PERIOD_M14; // Note: custom
+      case 13:  return PERIOD_M12; // M13 not standard, using M12
+      case 14:  return PERIOD_M15; // M14 not standard, using M15
       case 15:  return PERIOD_M15;
       case 20:  return PERIOD_M20;
       case 30:  return PERIOD_M30;
@@ -1059,68 +1059,67 @@ void ManageTFBoxes(int tf_idx, double p_h, double p_l, datetime p_t, bool p_conf
    
    for(int idx = tf_boxes_count[tf_idx] - 1; idx >= 0; idx--)
    {
-      TrackedBox *bx = &tf_boxes[tf_idx][idx];
       
-      if(bx.direction == "bear")
+      if(tf_boxes[tf_idx][idx].direction == "bear")
       {
          // Check invalidation
-         if(p_h > 0 && p_h > bx.original_top)
+         if(p_h > 0 && p_h > tf_boxes[tf_idx][idx].original_top)
          {
             // Remove box - shift array
-            if(bx.obj_name != "") ObjectDelete(0, bx.obj_name);
+            if(tf_boxes[tf_idx][idx].obj_name != "") ObjectDelete(0, tf_boxes[tf_idx][idx].obj_name);
             for(int j = idx; j < tf_boxes_count[tf_idx] - 1; j++)
                tf_boxes[tf_idx][j] = tf_boxes[tf_idx][j+1];
             tf_boxes_count[tf_idx]--;
             continue;
          }
          
-         if(bx.state == STATE_FORMING)
+         if(tf_boxes[tf_idx][idx].state == STATE_FORMING)
          {
             if(p_conf)
             {
-               bx.state = STATE_ESTABLISHED;
-               bx.just_established = true;
-               bx.protection_end_time = p_t + tf_minutes * 60 * protection_candles;
-               bx.protection_active = true;
-               bx.est_wick_high = p_h;
-               bx.est_wick_low = p_l;
+               tf_boxes[tf_idx][idx].state = STATE_ESTABLISHED;
+               tf_boxes[tf_idx][idx].just_established = true;
+               tf_boxes[tf_idx][idx].protection_end_time = p_t + tf_minutes * 60 * protection_candles;
+               tf_boxes[tf_idx][idx].protection_active = true;
+               tf_boxes[tf_idx][idx].est_wick_high = p_h;
+               tf_boxes[tf_idx][idx].est_wick_low = p_l;
             }
          }
-         else if(bx.state == STATE_ESTABLISHED)
+         else if(tf_boxes[tf_idx][idx].state == STATE_ESTABLISHED)
          {
-            bool wick_zone_touched = (p_h > 0 && p_h >= bx.bottom_val && p_h < bx.original_top);
-            if(bx.protection_active)
+            bool wick_zone_touched = (p_h > 0 && p_h >= tf_boxes[tf_idx][idx].bottom_val && p_h < tf_boxes[tf_idx][idx].original_top);
+            if(tf_boxes[tf_idx][idx].protection_active)
             {
                if(wick_zone_touched)
                {
-                  bool wick_in_range = (bx.est_wick_high > 0 && bx.est_wick_low > 0 && 
-                                       p_h >= bx.est_wick_low && p_h <= bx.est_wick_high);
+                  bool wick_in_range = (tf_boxes[tf_idx][idx].est_wick_high > 0 && tf_boxes[tf_idx][idx].est_wick_low > 0 && 
+                                       p_h >= tf_boxes[tf_idx][idx].est_wick_low && p_h <= tf_boxes[tf_idx][idx].est_wick_high);
                   if(wick_in_range)
                   {
-                     bx.state = STATE_EST_RETEST;
-                     bx.has_est_retest = true;
-                     bx.has_been_retested = true;
-                     bx.retest_type = "EST+RETEST";
+                     tf_boxes[tf_idx][idx].state = STATE_EST_RETEST;
+                     tf_boxes[tf_idx][idx].has_est_retest = true;
+                     tf_boxes[tf_idx][idx].has_been_retested = true;
+                     tf_boxes[tf_idx][idx].retest_type = "EST+RETEST";
                      bear_est = true;
-                     bear_pat = bx.pattern_text + " [EST+RET]";
-                     bear_lvl = bx.original_top;
+                     bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [EST+RET]";
+                     bear_lvl = tf_boxes[tf_idx][idx].original_top;
                   }
                   else
                   {
-                     bx.state = STATE_FORMING_FRESH;
-                     bx.has_been_retested = true;
+                     tf_boxes[tf_idx][idx].state = STATE_FORMING_FRESH;
+                     tf_boxes[tf_idx][idx].has_been_retested = true;
                      bear_ret = true;
-                     bear_pat = bx.pattern_text + " [FRESH FORMING]";
-                     bear_lvl = bx.original_top;
+                     bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH FORMING]";
+                     bear_lvl = tf_boxes[tf_idx][idx].original_top;
                   }
                }
-               if(p_conf && p_t >= bx.protection_end_time)
+               if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
                {
-                  bx.protection_active = false;
-                  if(bx.state == STATE_ESTABLISHED)
+                  tf_boxes[tf_idx][idx].protection_active = false;
+                  if(tf_boxes[tf_idx][idx].state == STATE_ESTABLISHED)
                   {
-                     bx.retest_type = "FRESH";
-                     bx.completed_est_retest = true;
+                     tf_boxes[tf_idx][idx].retest_type = "FRESH";
+                     tf_boxes[tf_idx][idx].completed_est_retest = true;
                   }
                }
             }
@@ -1128,121 +1127,121 @@ void ManageTFBoxes(int tf_idx, double p_h, double p_l, datetime p_t, bool p_conf
             {
                if(wick_zone_touched)
                {
-                  bx.state = STATE_RESPECTED;
-                  bx.has_been_retested = true;
+                  tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+                  tf_boxes[tf_idx][idx].has_been_retested = true;
                   bear_ret = true;
-                  bear_pat = bx.pattern_text + " [FRESH]";
-                  bear_lvl = bx.original_top;
-                  if(p_h > bx.bottom_val && p_h < bx.top_val)
-                     bx.bottom_val = p_h;
+                  bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH]";
+                  bear_lvl = tf_boxes[tf_idx][idx].original_top;
+                  if(p_h > tf_boxes[tf_idx][idx].bottom_val && p_h < tf_boxes[tf_idx][idx].top_val)
+                     tf_boxes[tf_idx][idx].bottom_val = p_h;
                }
             }
          }
-         else if(bx.state == STATE_FORMING_FRESH)
+         else if(tf_boxes[tf_idx][idx].state == STATE_FORMING_FRESH)
          {
-            bool wick_zone_touched = (p_h > 0 && p_h >= bx.bottom_val && p_h < bx.original_top);
+            bool wick_zone_touched = (p_h > 0 && p_h >= tf_boxes[tf_idx][idx].bottom_val && p_h < tf_boxes[tf_idx][idx].original_top);
             if(wick_zone_touched)
             {
                bear_ret = true;
-               bear_pat = bx.pattern_text + " [FRESH FORMING]";
-               bear_lvl = bx.original_top;
+               bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH FORMING]";
+               bear_lvl = tf_boxes[tf_idx][idx].original_top;
             }
-            if(p_conf && p_t >= bx.protection_end_time)
+            if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
             {
-               bx.state = STATE_RESPECTED;
-               bx.protection_active = false;
-               bx.retest_type = "FRESH";
-               bx.completed_est_retest = true;
+               tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+               tf_boxes[tf_idx][idx].protection_active = false;
+               tf_boxes[tf_idx][idx].retest_type = "FRESH";
+               tf_boxes[tf_idx][idx].completed_est_retest = true;
             }
          }
-         else if(bx.state == STATE_EST_RETEST)
+         else if(tf_boxes[tf_idx][idx].state == STATE_EST_RETEST)
          {
-            bool wick_zone_touched = (p_h > 0 && p_h >= bx.bottom_val && p_h < bx.original_top);
+            bool wick_zone_touched = (p_h > 0 && p_h >= tf_boxes[tf_idx][idx].bottom_val && p_h < tf_boxes[tf_idx][idx].original_top);
             bear_est = true;
-            bear_pat = bx.pattern_text + " [EST+RET]";
-            bear_lvl = bx.original_top;
+            bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [EST+RET]";
+            bear_lvl = tf_boxes[tf_idx][idx].original_top;
             if(wick_zone_touched) bear_ret = true;
-            if(p_conf && p_t >= bx.protection_end_time)
+            if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
             {
                bear_est_valid = true;
-               bx.state = STATE_RESPECTED;
-               bx.protection_active = false;
-               bx.retest_type = "FRESH";
-               bx.completed_est_retest = true;
+               tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+               tf_boxes[tf_idx][idx].protection_active = false;
+               tf_boxes[tf_idx][idx].retest_type = "FRESH";
+               tf_boxes[tf_idx][idx].completed_est_retest = true;
             }
          }
-         else if(bx.state == STATE_RESPECTED)
+         else if(tf_boxes[tf_idx][idx].state == STATE_RESPECTED)
          {
-            bool is_touching = (p_h > 0 && p_h >= bx.bottom_val && p_l <= bx.top_val);
+            bool is_touching = (p_h > 0 && p_h >= tf_boxes[tf_idx][idx].bottom_val && p_l <= tf_boxes[tf_idx][idx].top_val);
             if(is_touching)
             {
                bear_ret = true;
-               bear_pat = bx.pattern_text + " [" + bx.retest_type + "]";
-               bear_lvl = bx.original_top;
-               if(p_h > bx.bottom_val && p_h < bx.top_val)
-                  bx.bottom_val = p_h;
+               bear_pat = tf_boxes[tf_idx][idx].pattern_text + " [" + tf_boxes[tf_idx][idx].retest_type + "]";
+               bear_lvl = tf_boxes[tf_idx][idx].original_top;
+               if(p_h > tf_boxes[tf_idx][idx].bottom_val && p_h < tf_boxes[tf_idx][idx].top_val)
+                  tf_boxes[tf_idx][idx].bottom_val = p_h;
             }
          }
       }
-      else if(bx.direction == "bull")
+      else if(tf_boxes[tf_idx][idx].direction == "bull")
       {
          // Check invalidation
-         if(p_l > 0 && p_l < bx.original_bottom)
+         if(p_l > 0 && p_l < tf_boxes[tf_idx][idx].original_bottom)
          {
-            if(bx.obj_name != "") ObjectDelete(0, bx.obj_name);
+            if(tf_boxes[tf_idx][idx].obj_name != "") ObjectDelete(0, tf_boxes[tf_idx][idx].obj_name);
             for(int j = idx; j < tf_boxes_count[tf_idx] - 1; j++)
                tf_boxes[tf_idx][j] = tf_boxes[tf_idx][j+1];
             tf_boxes_count[tf_idx]--;
             continue;
          }
          
-         if(bx.state == STATE_FORMING)
+         if(tf_boxes[tf_idx][idx].state == STATE_FORMING)
          {
             if(p_conf)
             {
-               bx.state = STATE_ESTABLISHED;
-               bx.just_established = true;
-               bx.protection_end_time = p_t + tf_minutes * 60 * protection_candles;
-               bx.protection_active = true;
-               bx.est_wick_high = p_h;
-               bx.est_wick_low = p_l;
+               tf_boxes[tf_idx][idx].state = STATE_ESTABLISHED;
+               tf_boxes[tf_idx][idx].just_established = true;
+               tf_boxes[tf_idx][idx].protection_end_time = p_t + tf_minutes * 60 * protection_candles;
+               tf_boxes[tf_idx][idx].protection_active = true;
+               tf_boxes[tf_idx][idx].est_wick_high = p_h;
+               tf_boxes[tf_idx][idx].est_wick_low = p_l;
             }
          }
-         else if(bx.state == STATE_ESTABLISHED)
+         else if(tf_boxes[tf_idx][idx].state == STATE_ESTABLISHED)
          {
-            bool wick_zone_touched = (p_l > 0 && p_l <= bx.top_val && p_l > bx.original_bottom);
-            if(bx.protection_active)
+            bool wick_zone_touched = (p_l > 0 && p_l <= tf_boxes[tf_idx][idx].top_val && p_l > tf_boxes[tf_idx][idx].original_bottom);
+            if(tf_boxes[tf_idx][idx].protection_active)
             {
                if(wick_zone_touched)
                {
-                  bool wick_in_range = (bx.est_wick_high > 0 && bx.est_wick_low > 0 &&
-                                       p_l >= bx.est_wick_low && p_l <= bx.est_wick_high);
+                  bool wick_in_range = (tf_boxes[tf_idx][idx].est_wick_high > 0 && tf_boxes[tf_idx][idx].est_wick_low > 0 &&
+                                       p_l >= tf_boxes[tf_idx][idx].est_wick_low && p_l <= tf_boxes[tf_idx][idx].est_wick_high);
                   if(wick_in_range)
                   {
-                     bx.state = STATE_EST_RETEST;
-                     bx.has_est_retest = true;
-                     bx.has_been_retested = true;
-                     bx.retest_type = "EST+RETEST";
+                     tf_boxes[tf_idx][idx].state = STATE_EST_RETEST;
+                     tf_boxes[tf_idx][idx].has_est_retest = true;
+                     tf_boxes[tf_idx][idx].has_been_retested = true;
+                     tf_boxes[tf_idx][idx].retest_type = "EST+RETEST";
                      bull_est = true;
-                     bull_pat = bx.pattern_text + " [EST+RET]";
-                     bull_lvl = bx.original_bottom;
+                     bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [EST+RET]";
+                     bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
                   }
                   else
                   {
-                     bx.state = STATE_FORMING_FRESH;
-                     bx.has_been_retested = true;
+                     tf_boxes[tf_idx][idx].state = STATE_FORMING_FRESH;
+                     tf_boxes[tf_idx][idx].has_been_retested = true;
                      bull_ret = true;
-                     bull_pat = bx.pattern_text + " [FRESH FORMING]";
-                     bull_lvl = bx.original_bottom;
+                     bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH FORMING]";
+                     bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
                   }
                }
-               if(p_conf && p_t >= bx.protection_end_time)
+               if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
                {
-                  bx.protection_active = false;
-                  if(bx.state == STATE_ESTABLISHED)
+                  tf_boxes[tf_idx][idx].protection_active = false;
+                  if(tf_boxes[tf_idx][idx].state == STATE_ESTABLISHED)
                   {
-                     bx.retest_type = "FRESH";
-                     bx.completed_est_retest = true;
+                     tf_boxes[tf_idx][idx].retest_type = "FRESH";
+                     tf_boxes[tf_idx][idx].completed_est_retest = true;
                   }
                }
             }
@@ -1250,59 +1249,59 @@ void ManageTFBoxes(int tf_idx, double p_h, double p_l, datetime p_t, bool p_conf
             {
                if(wick_zone_touched)
                {
-                  bx.state = STATE_RESPECTED;
-                  bx.has_been_retested = true;
+                  tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+                  tf_boxes[tf_idx][idx].has_been_retested = true;
                   bull_ret = true;
-                  bull_pat = bx.pattern_text + " [FRESH]";
-                  bull_lvl = bx.original_bottom;
-                  if(p_l < bx.top_val && p_l > bx.bottom_val)
-                     bx.top_val = p_l;
+                  bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH]";
+                  bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
+                  if(p_l < tf_boxes[tf_idx][idx].top_val && p_l > tf_boxes[tf_idx][idx].bottom_val)
+                     tf_boxes[tf_idx][idx].top_val = p_l;
                }
             }
          }
-         else if(bx.state == STATE_FORMING_FRESH)
+         else if(tf_boxes[tf_idx][idx].state == STATE_FORMING_FRESH)
          {
-            bool wick_zone_touched = (p_l > 0 && p_l <= bx.top_val && p_l > bx.original_bottom);
+            bool wick_zone_touched = (p_l > 0 && p_l <= tf_boxes[tf_idx][idx].top_val && p_l > tf_boxes[tf_idx][idx].original_bottom);
             if(wick_zone_touched)
             {
                bull_ret = true;
-               bull_pat = bx.pattern_text + " [FRESH FORMING]";
-               bull_lvl = bx.original_bottom;
+               bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [FRESH FORMING]";
+               bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
             }
-            if(p_conf && p_t >= bx.protection_end_time)
+            if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
             {
-               bx.state = STATE_RESPECTED;
-               bx.protection_active = false;
-               bx.retest_type = "FRESH";
-               bx.completed_est_retest = true;
+               tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+               tf_boxes[tf_idx][idx].protection_active = false;
+               tf_boxes[tf_idx][idx].retest_type = "FRESH";
+               tf_boxes[tf_idx][idx].completed_est_retest = true;
             }
          }
-         else if(bx.state == STATE_EST_RETEST)
+         else if(tf_boxes[tf_idx][idx].state == STATE_EST_RETEST)
          {
-            bool wick_zone_touched = (p_l > 0 && p_l <= bx.top_val && p_l > bx.original_bottom);
+            bool wick_zone_touched = (p_l > 0 && p_l <= tf_boxes[tf_idx][idx].top_val && p_l > tf_boxes[tf_idx][idx].original_bottom);
             bull_est = true;
-            bull_pat = bx.pattern_text + " [EST+RET]";
-            bull_lvl = bx.original_bottom;
+            bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [EST+RET]";
+            bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
             if(wick_zone_touched) bull_ret = true;
-            if(p_conf && p_t >= bx.protection_end_time)
+            if(p_conf && p_t >= tf_boxes[tf_idx][idx].protection_end_time)
             {
                bull_est_valid = true;
-               bx.state = STATE_RESPECTED;
-               bx.protection_active = false;
-               bx.retest_type = "FRESH";
-               bx.completed_est_retest = true;
+               tf_boxes[tf_idx][idx].state = STATE_RESPECTED;
+               tf_boxes[tf_idx][idx].protection_active = false;
+               tf_boxes[tf_idx][idx].retest_type = "FRESH";
+               tf_boxes[tf_idx][idx].completed_est_retest = true;
             }
          }
-         else if(bx.state == STATE_RESPECTED)
+         else if(tf_boxes[tf_idx][idx].state == STATE_RESPECTED)
          {
-            bool is_touching = (p_l > 0 && p_l <= bx.top_val && p_h >= bx.bottom_val);
+            bool is_touching = (p_l > 0 && p_l <= tf_boxes[tf_idx][idx].top_val && p_h >= tf_boxes[tf_idx][idx].bottom_val);
             if(is_touching)
             {
                bull_ret = true;
-               bull_pat = bx.pattern_text + " [" + bx.retest_type + "]";
-               bull_lvl = bx.original_bottom;
-               if(p_l < bx.top_val && p_l > bx.bottom_val)
-                  bx.top_val = p_l;
+               bull_pat = tf_boxes[tf_idx][idx].pattern_text + " [" + tf_boxes[tf_idx][idx].retest_type + "]";
+               bull_lvl = tf_boxes[tf_idx][idx].original_bottom;
+               if(p_l < tf_boxes[tf_idx][idx].top_val && p_l > tf_boxes[tf_idx][idx].bottom_val)
+                  tf_boxes[tf_idx][idx].top_val = p_l;
             }
          }
       }
@@ -1974,33 +1973,32 @@ int OnCalculate(const int rates_total,
          {
             for(int bx_idx = 0; bx_idx < tf_boxes_count[i]; bx_idx++)
             {
-               TrackedBox *bx = &tf_boxes[i][bx_idx];
-               if(bx.tf_minutes != TF_MINUTES[i] || bx.creation_time == i_t || bx.state == STATE_FORMING)
+               if(tf_boxes[i][bx_idx].tf_minutes != TF_MINUTES[i] || tf_boxes[i][bx_idx].creation_time == i_t || tf_boxes[i][bx_idx].state == STATE_FORMING)
                   continue;
                
-               bool bx_has_fu_sn = (StringFind(bx.base_pattern, "FU") >= 0) || (StringFind(bx.base_pattern, "SN") >= 0);
+               bool bx_has_fu_sn = (StringFind(tf_boxes[i][bx_idx].base_pattern, "FU") >= 0) || (StringFind(tf_boxes[i][bx_idx].base_pattern, "SN") >= 0);
                if(!bx_has_fu_sn) continue;
                
-               if(bx.direction == "bear" && new_bear_fu_sn)
+               if(tf_boxes[i][bx_idx].direction == "bear" && new_bear_fu_sn)
                {
-                  if(i_h > 0 && i_h >= bx.bottom_val && i_h <= bx.original_top)
+                  if(i_h > 0 && i_h >= tf_boxes[i][bx_idx].bottom_val && i_h <= tf_boxes[i][bx_idx].original_top)
                   {
                      if(i_conf)
                      {
                         if(arr_last_bear_hcs_time[i] != i_t)
                         {
                            bear_hcs = true;
-                           bx.hcs_count++;
-                           bx.pattern_text = bx.base_pattern + " [HCS X" + IntegerToString(bx.hcs_count) + "]";
+                           tf_boxes[i][bx_idx].hcs_count++;
+                           tf_boxes[i][bx_idx].pattern_text = tf_boxes[i][bx_idx].base_pattern + " [HCS X" + IntegerToString(tf_boxes[i][bx_idx].hcs_count) + "]";
                            arr_last_bear_hcs_time[i] = i_t;
                            
-                           if(InpShowHCSBoxes && bx.hcs_count == 1 && (TF_MINUTES[i] == 50 || TF_MINUTES[i] == 60))
+                           if(InpShowHCSBoxes && tf_boxes[i][bx_idx].hcs_count == 1 && (TF_MINUTES[i] == 50 || TF_MINUTES[i] == 60))
                            {
                               if(hcs_boxes_bear_count < MAX_HCS_BOXES)
                               {
                                  hcs_boxes_bear[hcs_boxes_bear_count].Init();
-                                 hcs_boxes_bear[hcs_boxes_bear_count].top_val = bx.original_top;
-                                 hcs_boxes_bear[hcs_boxes_bear_count].bottom_val = bx.original_bottom;
+                                 hcs_boxes_bear[hcs_boxes_bear_count].top_val = tf_boxes[i][bx_idx].original_top;
+                                 hcs_boxes_bear[hcs_boxes_bear_count].bottom_val = tf_boxes[i][bx_idx].original_bottom;
                                  hcs_boxes_bear[hcs_boxes_bear_count].creation_bar = current_bar;
                                  hcs_boxes_bear[hcs_boxes_bear_count].tf_label = tf_label;
                                  hcs_boxes_bear[hcs_boxes_bear_count].direction = "bear";
@@ -2014,26 +2012,26 @@ int OnCalculate(const int rates_total,
                         bear_hcs_forming = true;
                   }
                }
-               if(bx.direction == "bull" && new_bull_fu_sn)
+               if(tf_boxes[i][bx_idx].direction == "bull" && new_bull_fu_sn)
                {
-                  if(i_l > 0 && i_l <= bx.top_val && i_l >= bx.original_bottom)
+                  if(i_l > 0 && i_l <= tf_boxes[i][bx_idx].top_val && i_l >= tf_boxes[i][bx_idx].original_bottom)
                   {
                      if(i_conf)
                      {
                         if(arr_last_bull_hcs_time[i] != i_t)
                         {
                            bull_hcs = true;
-                           bx.hcs_count++;
-                           bx.pattern_text = bx.base_pattern + " [HCS X" + IntegerToString(bx.hcs_count) + "]";
+                           tf_boxes[i][bx_idx].hcs_count++;
+                           tf_boxes[i][bx_idx].pattern_text = tf_boxes[i][bx_idx].base_pattern + " [HCS X" + IntegerToString(tf_boxes[i][bx_idx].hcs_count) + "]";
                            arr_last_bull_hcs_time[i] = i_t;
                            
-                           if(InpShowHCSBoxes && bx.hcs_count == 1 && (TF_MINUTES[i] == 50 || TF_MINUTES[i] == 60))
+                           if(InpShowHCSBoxes && tf_boxes[i][bx_idx].hcs_count == 1 && (TF_MINUTES[i] == 50 || TF_MINUTES[i] == 60))
                            {
                               if(hcs_boxes_bull_count < MAX_HCS_BOXES)
                               {
                                  hcs_boxes_bull[hcs_boxes_bull_count].Init();
-                                 hcs_boxes_bull[hcs_boxes_bull_count].top_val = bx.original_top;
-                                 hcs_boxes_bull[hcs_boxes_bull_count].bottom_val = bx.original_bottom;
+                                 hcs_boxes_bull[hcs_boxes_bull_count].top_val = tf_boxes[i][bx_idx].original_top;
+                                 hcs_boxes_bull[hcs_boxes_bull_count].bottom_val = tf_boxes[i][bx_idx].original_bottom;
                                  hcs_boxes_bull[hcs_boxes_bull_count].creation_bar = current_bar;
                                  hcs_boxes_bull[hcs_boxes_bull_count].tf_label = tf_label;
                                  hcs_boxes_bull[hcs_boxes_bull_count].direction = "bull";
@@ -2262,38 +2260,37 @@ int OnCalculate(const int rates_total,
       // Scan boxes for LV, retesting counts
       for(int bx_idx = 0; bx_idx < tf_boxes_count[i]; bx_idx++)
       {
-         TrackedBox *bx = &tf_boxes[i][bx_idx];
-         bool is_em = IsEMPattern(bx.base_pattern);
-         bool is_fu_sn = IsFUPattern(bx.base_pattern);
+         bool is_em = IsEMPattern(tf_boxes[i][bx_idx].base_pattern);
+         bool is_fu_sn = IsFUPattern(tf_boxes[i][bx_idx].base_pattern);
          bool should_check = (cat == CAT_SCALP) ? (is_em || is_fu_sn) : is_em;
          if(!should_check) continue;
          
-         bool is_active = (bx.state == STATE_FORMING || bx.state == STATE_ESTABLISHED || 
-                          bx.state == STATE_EST_RETEST || bx.state == STATE_RESPECTED);
+         bool is_active = (tf_boxes[i][bx_idx].state == STATE_FORMING || tf_boxes[i][bx_idx].state == STATE_ESTABLISHED || 
+                          tf_boxes[i][bx_idx].state == STATE_EST_RETEST || tf_boxes[i][bx_idx].state == STATE_RESPECTED);
          if(!is_active) continue;
          
-         bool has_em_modifier = (StringFind(bx.base_pattern, "Third") >= 0) || 
-                                (StringFind(bx.base_pattern, "First") >= 0) || 
-                                (StringFind(bx.base_pattern, "LAOL") >= 0) || 
-                                (StringFind(bx.base_pattern, "[EM]") >= 0) || 
-                                (StringFind(bx.base_pattern, "TBE") >= 0) || 
-                                (StringFind(bx.base_pattern, "HCS") >= 0);
+         bool has_em_modifier = (StringFind(tf_boxes[i][bx_idx].base_pattern, "Third") >= 0) || 
+                                (StringFind(tf_boxes[i][bx_idx].base_pattern, "First") >= 0) || 
+                                (StringFind(tf_boxes[i][bx_idx].base_pattern, "LAOL") >= 0) || 
+                                (StringFind(tf_boxes[i][bx_idx].base_pattern, "[EM]") >= 0) || 
+                                (StringFind(tf_boxes[i][bx_idx].base_pattern, "TBE") >= 0) || 
+                                (StringFind(tf_boxes[i][bx_idx].base_pattern, "HCS") >= 0);
          
-         bool bear_touching = (bx.direction == "bear" && i_h > 0 && i_h >= bx.bottom_val && i_h <= bx.top_val);
-         bool bull_touching = (bx.direction == "bull" && i_l > 0 && i_l <= bx.top_val && i_l >= bx.bottom_val);
+         bool bear_touching = (tf_boxes[i][bx_idx].direction == "bear" && i_h > 0 && i_h >= tf_boxes[i][bx_idx].bottom_val && i_h <= tf_boxes[i][bx_idx].top_val);
+         bool bull_touching = (tf_boxes[i][bx_idx].direction == "bull" && i_l > 0 && i_l <= tf_boxes[i][bx_idx].top_val && i_l >= tf_boxes[i][bx_idx].bottom_val);
          
-         if(bx.direction == "bear")
+         if(tf_boxes[i][bx_idx].direction == "bear")
          {
             if(cat == CAT_ENTRY)
             {
                if(is_active && is_em) entry_bear_em_est++;
-               if(bear_touching && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) entry_bear_em_ret++;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > entry_bear_lv.est_time)
+               if(bear_touching && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) entry_bear_em_ret++;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > entry_bear_lv.est_time)
                {
-                  entry_bear_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  entry_bear_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  entry_bear_lv.level = bx.original_top;
-                  entry_bear_lv.est_time = bx.creation_time;
+                  entry_bear_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  entry_bear_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  entry_bear_lv.level = tf_boxes[i][bx_idx].original_top;
+                  entry_bear_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   entry_bear_lv.direction = "bear";
                   entry_bear_lv.is_broken = false;
                }
@@ -2301,13 +2298,13 @@ int OnCalculate(const int rates_total,
             else if(cat == CAT_SCALP)
             {
                if(is_active && is_em) scalp_bear_em_est++;
-               if(bear_touching && (is_em || is_fu_sn) && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) scalp_bear_em_ret++;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > scalp_bear_lv.est_time)
+               if(bear_touching && (is_em || is_fu_sn) && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) scalp_bear_em_ret++;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > scalp_bear_lv.est_time)
                {
-                  scalp_bear_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  scalp_bear_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  scalp_bear_lv.level = bx.original_top;
-                  scalp_bear_lv.est_time = bx.creation_time;
+                  scalp_bear_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  scalp_bear_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  scalp_bear_lv.level = tf_boxes[i][bx_idx].original_top;
+                  scalp_bear_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   scalp_bear_lv.direction = "bear";
                   scalp_bear_lv.is_broken = false;
                }
@@ -2315,19 +2312,19 @@ int OnCalculate(const int rates_total,
             else if(cat == CAT_INTRA)
             {
                if(is_active && is_em) intra_bear_em_total++;
-               if(bear_touching && is_em && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) intra_bear_retesting = true;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > intra_bear_lv.est_time)
+               if(bear_touching && is_em && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) intra_bear_retesting = true;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > intra_bear_lv.est_time)
                {
-                  intra_bear_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  intra_bear_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  intra_bear_lv.level = bx.original_top;
-                  intra_bear_lv.est_time = bx.creation_time;
+                  intra_bear_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  intra_bear_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  intra_bear_lv.level = tf_boxes[i][bx_idx].original_top;
+                  intra_bear_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   intra_bear_lv.direction = "bear";
                   intra_bear_lv.is_broken = false;
                }
-               if(bx.has_est_retest && (bx.state == STATE_EST_RETEST || (bx.state == STATE_RESPECTED && bx.completed_est_retest)))
+               if(tf_boxes[i][bx_idx].has_est_retest && (tf_boxes[i][bx_idx].state == STATE_EST_RETEST || (tf_boxes[i][bx_idx].state == STATE_RESPECTED && tf_boxes[i][bx_idx].completed_est_retest)))
                   intra_bear_est_ret_box_found = true;
-               if(bx.is_em_forming && (bx.state == STATE_FORMING || bx.state == STATE_ESTABLISHED))
+               if(tf_boxes[i][bx_idx].is_em_forming && (tf_boxes[i][bx_idx].state == STATE_FORMING || tf_boxes[i][bx_idx].state == STATE_ESTABLISHED))
                   intra_bear_em_form_found = true;
             }
          }
@@ -2336,13 +2333,13 @@ int OnCalculate(const int rates_total,
             if(cat == CAT_ENTRY)
             {
                if(is_active && is_em) entry_bull_em_est++;
-               if(bull_touching && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) entry_bull_em_ret++;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > entry_bull_lv.est_time)
+               if(bull_touching && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) entry_bull_em_ret++;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > entry_bull_lv.est_time)
                {
-                  entry_bull_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  entry_bull_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  entry_bull_lv.level = bx.original_bottom;
-                  entry_bull_lv.est_time = bx.creation_time;
+                  entry_bull_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  entry_bull_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  entry_bull_lv.level = tf_boxes[i][bx_idx].original_bottom;
+                  entry_bull_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   entry_bull_lv.direction = "bull";
                   entry_bull_lv.is_broken = false;
                }
@@ -2350,13 +2347,13 @@ int OnCalculate(const int rates_total,
             else if(cat == CAT_SCALP)
             {
                if(is_active && is_em) scalp_bull_em_est++;
-               if(bull_touching && (is_em || is_fu_sn) && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) scalp_bull_em_ret++;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > scalp_bull_lv.est_time)
+               if(bull_touching && (is_em || is_fu_sn) && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) scalp_bull_em_ret++;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > scalp_bull_lv.est_time)
                {
-                  scalp_bull_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  scalp_bull_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  scalp_bull_lv.level = bx.original_bottom;
-                  scalp_bull_lv.est_time = bx.creation_time;
+                  scalp_bull_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  scalp_bull_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  scalp_bull_lv.level = tf_boxes[i][bx_idx].original_bottom;
+                  scalp_bull_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   scalp_bull_lv.direction = "bull";
                   scalp_bull_lv.is_broken = false;
                }
@@ -2364,19 +2361,19 @@ int OnCalculate(const int rates_total,
             else if(cat == CAT_INTRA)
             {
                if(is_active && is_em) intra_bull_em_total++;
-               if(bull_touching && is_em && bx.state != STATE_EST_RETEST && bx.state != STATE_FORMING) intra_bull_retesting = true;
-               if(is_em && has_em_modifier && bx.state == STATE_ESTABLISHED && bx.creation_time > intra_bull_lv.est_time)
+               if(bull_touching && is_em && tf_boxes[i][bx_idx].state != STATE_EST_RETEST && tf_boxes[i][bx_idx].state != STATE_FORMING) intra_bull_retesting = true;
+               if(is_em && has_em_modifier && tf_boxes[i][bx_idx].state == STATE_ESTABLISHED && tf_boxes[i][bx_idx].creation_time > intra_bull_lv.est_time)
                {
-                  intra_bull_lv.pattern_text = "[" + tf_label + "] " + bx.pattern_text;
-                  intra_bull_lv.original_text = "[" + tf_label + "] " + bx.pattern_text;
-                  intra_bull_lv.level = bx.original_bottom;
-                  intra_bull_lv.est_time = bx.creation_time;
+                  intra_bull_lv.pattern_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  intra_bull_lv.original_text = "[" + tf_label + "] " + tf_boxes[i][bx_idx].pattern_text;
+                  intra_bull_lv.level = tf_boxes[i][bx_idx].original_bottom;
+                  intra_bull_lv.est_time = tf_boxes[i][bx_idx].creation_time;
                   intra_bull_lv.direction = "bull";
                   intra_bull_lv.is_broken = false;
                }
-               if(bx.has_est_retest && (bx.state == STATE_EST_RETEST || (bx.state == STATE_RESPECTED && bx.completed_est_retest)))
+               if(tf_boxes[i][bx_idx].has_est_retest && (tf_boxes[i][bx_idx].state == STATE_EST_RETEST || (tf_boxes[i][bx_idx].state == STATE_RESPECTED && tf_boxes[i][bx_idx].completed_est_retest)))
                   intra_bull_est_ret_box_found = true;
-               if(bx.is_em_forming && (bx.state == STATE_FORMING || bx.state == STATE_ESTABLISHED))
+               if(tf_boxes[i][bx_idx].is_em_forming && (tf_boxes[i][bx_idx].state == STATE_FORMING || tf_boxes[i][bx_idx].state == STATE_ESTABLISHED))
                   intra_bull_em_form_found = true;
             }
          }
