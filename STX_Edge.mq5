@@ -286,3 +286,239 @@ const uint rr_sl_color        = ColorToARGB(clrRed, 77);         // Red 70% tran
 const uint rr_tp_color        = ColorToARGB(clrGreen, 77);       // Green 70% transparent
 
 //+------------------------------------------------------------------+
+//| Global State Arrays and Variables                                  |
+//+------------------------------------------------------------------+
+
+//--- Timeframe label and category string arrays
+string TF_LABELS[TF_COUNT];
+string TF_CATEGORIES[TF_COUNT];
+
+//--- Pattern detection arrays (bool[TF_COUNT])
+bool arr_fu_bear[TF_COUNT];
+bool arr_fu_bull[TF_COUNT];
+bool arr_sn_bear[TF_COUNT];
+bool arr_sn_bull[TF_COUNT];
+bool arr_first_bear[TF_COUNT];
+bool arr_first_bull[TF_COUNT];
+bool arr_second_bear[TF_COUNT];
+bool arr_second_bull[TF_COUNT];
+bool arr_third_bear[TF_COUNT];
+bool arr_third_bull[TF_COUNT];
+bool arr_laol_bear[TF_COUNT];
+bool arr_laol_bull[TF_COUNT];
+bool arr_laol_first_bear[TF_COUNT];
+bool arr_laol_first_bull[TF_COUNT];
+
+//--- Timeframe data arrays
+double   arr_tf_h[TF_COUNT];
+double   arr_tf_l[TF_COUNT];
+double   arr_tf_bt[TF_COUNT];
+double   arr_tf_bb[TF_COUNT];
+datetime arr_tf_t[TF_COUNT];
+bool     arr_tf_conf[TF_COUNT];
+
+//--- Sequence state arrays
+SeqState arr_bear_seq[TF_COUNT];
+SeqState arr_bull_seq[TF_COUNT];
+
+//--- HCS detection arrays
+bool     arr_bear_hcs[TF_COUNT];
+bool     arr_bull_hcs[TF_COUNT];
+bool     arr_bear_hcs_forming[TF_COUNT];
+bool     arr_bull_hcs_forming[TF_COUNT];
+datetime arr_last_bear_hcs_time[TF_COUNT];
+datetime arr_last_bull_hcs_time[TF_COUNT];
+bool     arr_bear_hcs_broken[TF_COUNT];
+bool     arr_bull_hcs_broken[TF_COUNT];
+bool     arr_bear_hcs_retesting[TF_COUNT];
+bool     arr_bull_hcs_retesting[TF_COUNT];
+
+//--- Third step tracking arrays
+int      arr_bear_third_step[TF_COUNT];
+double   arr_bear_third_ref_h[TF_COUNT];
+double   arr_bear_third_ref_l[TF_COUNT];
+datetime arr_bear_third_ref_time[TF_COUNT];
+int      arr_bull_third_step[TF_COUNT];
+double   arr_bull_third_ref_h[TF_COUNT];
+double   arr_bull_third_ref_l[TF_COUNT];
+datetime arr_bull_third_ref_time[TF_COUNT];
+
+//--- LAOL step tracking arrays
+int      arr_bear_laol_step[TF_COUNT];
+double   arr_bear_laol_ref_h[TF_COUNT];
+double   arr_bear_laol_ref_l[TF_COUNT];
+datetime arr_bear_laol_ref_time[TF_COUNT];
+int      arr_bull_laol_step[TF_COUNT];
+double   arr_bull_laol_ref_h[TF_COUNT];
+double   arr_bull_laol_ref_l[TF_COUNT];
+datetime arr_bull_laol_ref_time[TF_COUNT];
+
+//--- Retesting arrays
+bool   arr_bear_retesting[TF_COUNT];
+bool   arr_bull_retesting[TF_COUNT];
+bool   arr_bear_est_retest[TF_COUNT];
+bool   arr_bull_est_retest[TF_COUNT];
+bool   arr_bear_est_retest_VALID[TF_COUNT];
+bool   arr_bull_est_retest_VALID[TF_COUNT];
+bool   arr_bear_est_retest_VALID_prev[TF_COUNT];
+bool   arr_bull_est_retest_VALID_prev[TF_COUNT];
+string arr_bear_retest_pattern[TF_COUNT];
+string arr_bull_retest_pattern[TF_COUNT];
+double arr_bear_retest_level[TF_COUNT];
+double arr_bull_retest_level[TF_COUNT];
+
+//--- LAOL candle arrays
+bool arr_laol_candle_bear[TF_COUNT];
+bool arr_laol_candle_bull[TF_COUNT];
+
+//+------------------------------------------------------------------+
+//| TrackedBox arrays for all 25 timeframes                           |
+//+------------------------------------------------------------------+
+TrackedBox tf1_boxes[MAX_BOXES];  int tf1_boxes_count  = 0;
+TrackedBox tf2_boxes[MAX_BOXES];  int tf2_boxes_count  = 0;
+TrackedBox tf3_boxes[MAX_BOXES];  int tf3_boxes_count  = 0;
+TrackedBox tf4_boxes[MAX_BOXES];  int tf4_boxes_count  = 0;
+TrackedBox tf5_boxes[MAX_BOXES];  int tf5_boxes_count  = 0;
+TrackedBox tf6_boxes[MAX_BOXES];  int tf6_boxes_count  = 0;
+TrackedBox tf7_boxes[MAX_BOXES];  int tf7_boxes_count  = 0;
+TrackedBox tf8_boxes[MAX_BOXES];  int tf8_boxes_count  = 0;
+TrackedBox tf9_boxes[MAX_BOXES];  int tf9_boxes_count  = 0;
+TrackedBox tf10_boxes[MAX_BOXES]; int tf10_boxes_count = 0;
+TrackedBox tf11_boxes[MAX_BOXES]; int tf11_boxes_count = 0;
+TrackedBox tf12_boxes[MAX_BOXES]; int tf12_boxes_count = 0;
+TrackedBox tf13_boxes[MAX_BOXES]; int tf13_boxes_count = 0;
+TrackedBox tf14_boxes[MAX_BOXES]; int tf14_boxes_count = 0;
+TrackedBox tf15_boxes[MAX_BOXES]; int tf15_boxes_count = 0;
+TrackedBox tf16_boxes[MAX_BOXES]; int tf16_boxes_count = 0;
+TrackedBox tf17_boxes[MAX_BOXES]; int tf17_boxes_count = 0;
+TrackedBox tf18_boxes[MAX_BOXES]; int tf18_boxes_count = 0;
+TrackedBox tf19_boxes[MAX_BOXES]; int tf19_boxes_count = 0;
+TrackedBox tf20_boxes[MAX_BOXES]; int tf20_boxes_count = 0;
+TrackedBox tf21_boxes[MAX_BOXES]; int tf21_boxes_count = 0;
+TrackedBox tf22_boxes[MAX_BOXES]; int tf22_boxes_count = 0;
+TrackedBox tf23_boxes[MAX_BOXES]; int tf23_boxes_count = 0;
+TrackedBox tf24_boxes[MAX_BOXES]; int tf24_boxes_count = 0;
+TrackedBox tf25_boxes[MAX_BOXES]; int tf25_boxes_count = 0;
+
+//+------------------------------------------------------------------+
+//| LaolLineData dynamic arrays (with count)                          |
+//+------------------------------------------------------------------+
+LaolLineData bear_laol_lines[MAX_LAOL];        int bear_laol_lines_count        = 0;
+LaolLineData bull_laol_lines[MAX_LAOL];        int bull_laol_lines_count        = 0;
+LaolLineData bear_intra_laol_lines[MAX_LAOL];  int bear_intra_laol_lines_count  = 0;
+LaolLineData bull_intra_laol_lines[MAX_LAOL];  int bull_intra_laol_lines_count  = 0;
+LaolLineData bear_scalp_laol_lines[MAX_LAOL];  int bear_scalp_laol_lines_count  = 0;
+LaolLineData bull_scalp_laol_lines[MAX_LAOL];  int bull_scalp_laol_lines_count  = 0;
+
+//+------------------------------------------------------------------+
+//| HcsBoxData dynamic arrays (with count)                            |
+//+------------------------------------------------------------------+
+HcsBoxData hcs_boxes_bear[MAX_HCS]; int hcs_boxes_bear_count = 0;
+HcsBoxData hcs_boxes_bull[MAX_HCS]; int hcs_boxes_bull_count = 0;
+
+//+------------------------------------------------------------------+
+//| RrBoxSet dynamic arrays (with count)                              |
+//+------------------------------------------------------------------+
+RrBoxSet rr_boxes_bear[MAX_RR]; int rr_boxes_bear_count = 0;
+RrBoxSet rr_boxes_bull[MAX_RR]; int rr_boxes_bull_count = 0;
+
+//+------------------------------------------------------------------+
+//| LastValidInfo instances                                            |
+//+------------------------------------------------------------------+
+LastValidInfo entry_bear_lv;
+LastValidInfo entry_bull_lv;
+LastValidInfo scalp_bear_lv;
+LastValidInfo scalp_bull_lv;
+LastValidInfo intra_bear_lv;
+LastValidInfo intra_bull_lv;
+
+//+------------------------------------------------------------------+
+//| Forming/display state variables                                    |
+//+------------------------------------------------------------------+
+//--- Bear forming RR object tracking
+string bear_forming_rr_sl_name  = "";
+string bear_forming_rr_tp_name  = "";
+string bear_forming_rr_pip_name = "";
+int    bear_forming_rr_bar      = -1;
+
+//--- Bull forming RR object tracking
+string bull_forming_rr_sl_name  = "";
+string bull_forming_rr_tp_name  = "";
+string bull_forming_rr_pip_name = "";
+int    bull_forming_rr_bar      = -1;
+
+//--- Final entry setup tracking
+int    final_entry_bear_setup_bar = -1;
+int    final_entry_bull_setup_bar = -1;
+string final_entry_bear_pattern   = "";
+string final_entry_bull_pattern   = "";
+
+//--- Last forming/confirmed bar tracking
+int last_bear_forming_bar   = -1;
+int last_bear_confirmed_bar = -1;
+int last_bull_forming_bar   = -1;
+int last_bull_confirmed_bar = -1;
+
+//--- Intra negation state
+bool   intra_bear_negating         = false;
+bool   intra_bull_negating         = false;
+string intra_bear_negating_pattern = "";
+string intra_bull_negating_pattern = "";
+
+//+------------------------------------------------------------------+
+//| LAOL break time tracking                                          |
+//+------------------------------------------------------------------+
+datetime last_bear_laol_break_time       = 0;
+datetime last_bull_laol_break_time       = 0;
+string   last_bear_laol_tf               = "";
+string   last_bull_laol_tf               = "";
+datetime last_bear_intra_laol_break_time = 0;
+datetime last_bull_intra_laol_break_time = 0;
+string   last_bear_intra_laol_tf         = "";
+string   last_bull_intra_laol_tf         = "";
+datetime last_bear_scalp_laol_break_time = 0;
+datetime last_bull_scalp_laol_break_time = 0;
+string   last_bear_scalp_laol_tf         = "";
+string   last_bull_scalp_laol_tf         = "";
+
+//+------------------------------------------------------------------+
+//| XLAOL arrays (for LAOL lines drawn inside boxes)                  |
+//+------------------------------------------------------------------+
+#define MAX_XLAOL 100
+string xlaol_line_names[MAX_XLAOL];
+string xlaol_label_names[MAX_XLAOL];
+double xlaol_levels[MAX_XLAOL];
+bool   xlaol_bear[MAX_XLAOL];
+string xlaol_cat[MAX_XLAOL];
+int    xlaol_off[MAX_XLAOL];
+int    xlaol_count = 0;
+
+//+------------------------------------------------------------------+
+//| Display text arrays (forming/retesting/negation)                  |
+//+------------------------------------------------------------------+
+#define MAX_DISPLAY_TEXT 200
+string entry_forming[MAX_DISPLAY_TEXT];      int entry_forming_count      = 0;
+string entry_retesting[MAX_DISPLAY_TEXT];    int entry_retesting_count    = 0;
+string scalp_forming[MAX_DISPLAY_TEXT];      int scalp_forming_count      = 0;
+string scalp_retesting[MAX_DISPLAY_TEXT];    int scalp_retesting_count    = 0;
+string intra_forming[MAX_DISPLAY_TEXT];      int intra_forming_count      = 0;
+string intra_retesting[MAX_DISPLAY_TEXT];    int intra_retesting_count    = 0;
+string intra_negation[MAX_DISPLAY_TEXT];     int intra_negation_count     = 0;
+
+//+------------------------------------------------------------------+
+//| Forming type tracking                                             |
+//+------------------------------------------------------------------+
+string bear_forming_type      = "";
+string bear_forming_type_prev = "";
+string bull_forming_type      = "";
+string bull_forming_type_prev = "";
+
+//+------------------------------------------------------------------+
+//| Global utility variables                                          |
+//+------------------------------------------------------------------+
+int      g_obj_counter = 0;          // For unique object names
+int      g_bar_index   = 0;          // For bar counting
+datetime g_prev_tf_time[TF_COUNT];   // For bar confirmation tracking
+double   g_pip_value   = 0.0;        // Pip value (syminfo.mintick * 10 equivalent)
+
+//+------------------------------------------------------------------+
