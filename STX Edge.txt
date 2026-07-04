@@ -1,9 +1,6 @@
 //@version=6
-indicator("STX Edge", overlay=true, max_lines_count=500, max_bars_back=500, max_labels_count=500, max_boxes_count=500)
+indicator("STX Edge", overlay=true, max_bars_back=500)
 soft_start = input.bool(false, "SOFT START", group="||--- MUST BE ENABLED ---||")
-show_hcs_boxes = true
-var color rr_sl_color = color.new(color.red, 70)
-var color rr_tp_color = color.new(color.green, 70)
 const int TF_COUNT = 25
 var string[] TFS = array.from("1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","20","30","35","40","45","50","55","60","90","100")
 const int ENTRY_MIN_IDX = 0
@@ -12,18 +9,8 @@ const int SCALP_MIN_IDX = 5
 const int SCALP_MAX_IDX = 15
 const int INTRA_MIN_IDX = 16
 const int INTRA_MAX_IDX = 24
-var color entry_box_color    = color.new(color.blue, 95)
-var color entry_border_color = color.new(color.blue, 50)
-var color scalp_box_color    = color.new(color.green, 90)
-var color scalp_border_color = color.new(color.green, 50)
-var color intra_box_color    = color.new(color.red, 95)
-var color intra_border_color = color.new(color.red, 50)
-const int unretested_border_transparency = 100
-const int TP_MULTIPLIER = 8
 const int SETUP_LOOKBACK = 5
-const float PIP_TARGET = 40.0
 const int LAOL_DELETE_DELAY = 2
-pip_value = syminfo.mintick * 10
 type seq_state
     int step = 0
     float level = na
@@ -40,14 +27,11 @@ type tracked_box
     int protection_end_time = na
     string pattern_text = na
     string timeframe = na
-    box box_obj = na
     bool has_est_retest = false
     string retest_type = "FRESH"
     bool protection_active = true
     int hcs_count = 0
     string base_pattern = na
-    color box_color = na
-    color border_color = na
     bool has_been_retested = false
     bool is_intra = false
     float est_wick_high = na
@@ -56,8 +40,6 @@ type tracked_box
     bool is_em_forming = false
     bool just_established = false
 type laol_line_data
-    line line_obj = na
-    label label_obj = na
     float level = na
     string tf_labels = ""
     int creation_bar = na
@@ -76,26 +58,14 @@ type last_valid_info
     string direction = ""
     bool is_broken = false
 type hcs_box_data
-    box box_obj = na
     float top_val = na
     float bottom_val = na
     int creation_bar = na
     string tf_label = na
     string direction = ""
     bool is_broken = false
-type rr_box_set
-    box sl_box = na
-    box tp_box = na
-    line pip_line = na
-    string direction = ""
-    float sl_level = na
-    int creation_bar = na
 var hcs_box_data[] hcs_boxes_bear = array.new<hcs_box_data>()
 var hcs_box_data[] hcs_boxes_bull = array.new<hcs_box_data>()
-var color hcs_bear_bg     = color.new(color.orange, 80)
-var color hcs_bear_border = color.new(color.orange, 30)
-var color hcs_bull_bg     = color.new(#2196F3, 80)
-var color hcs_bull_border = color.new(#2196F3, 30)
 var bool[] arr_bear_hcs_broken = array.new_bool(TF_COUNT, false)
 var bool[] arr_bull_hcs_broken = array.new_bool(TF_COUNT, false)
 var bool[] arr_bear_hcs_retesting = array.new_bool(TF_COUNT, false)
@@ -228,18 +198,6 @@ var last_valid_info scalp_bear_lv = last_valid_info.new()
 var last_valid_info scalp_bull_lv = last_valid_info.new()
 var last_valid_info intra_bear_lv = last_valid_info.new()
 var last_valid_info intra_bull_lv = last_valid_info.new()
-var box bear_forming_rr_sl = na
-var box bear_forming_rr_tp = na
-var line bear_forming_rr_pip = na
-var int bear_forming_rr_bar = na
-var box bull_forming_rr_sl = na
-var box bull_forming_rr_tp = na
-var line bull_forming_rr_pip = na
-var int bull_forming_rr_bar = na
-var rr_box_set[] rr_boxes_bear = array.new<rr_box_set>()
-var rr_box_set[] rr_boxes_bull = array.new<rr_box_set>()
-var line[]   _xlaol_lines  = array.new<line>()
-var label[]  _xlaol_labels = array.new<label>()
 var float[]  _xlaol_levels = array.new<float>()
 var bool[]   _xlaol_bear   = array.new<bool>()
 var string[] _xlaol_cat    = array.new<string>()
@@ -681,9 +639,6 @@ f_merge_cross_category(laol_line_data[] entry_lines, laol_line_data[] scalp_line
                 break
     merged
 f_scan_laol_in_box(laol_line_data[] laol_arr, float _top, float _bot, bool _is_bear, string _laol_cat, string _box_cat) =>
-    color _col  = _laol_cat == "ENTRY" ? color.new(color.blue,  0) : color.new(color.green, 0)
-    color _lcol = _laol_cat == "ENTRY" ? color.new(color.blue, 50) : color.new(color.green, 50)
-    int   _off  = _laol_cat == "ENTRY" ? 15 : 30
     float _tol  = syminfo.mintick * 3
     for _ll in laol_arr
         if _ll.is_broken
@@ -694,27 +649,13 @@ f_scan_laol_in_box(laol_line_data[] laol_arr, float _top, float _bot, bool _is_b
             if _sz > 0
                 for _ei = 0 to _sz - 1
                     if math.abs(array.get(_xlaol_levels, _ei) - _ll.level) < _tol and array.get(_xlaol_cat, _ei) == _laol_cat
-                        _elbl = array.get(_xlaol_labels, _ei)
-                        if not na(_elbl)
-                            _cur_txt = label.get_text(_elbl)
-                            if not str.contains(_cur_txt, _box_cat)
-                                label.set_text(_elbl, _cur_txt + "+" + _box_cat)
-                                label.set_color(_elbl, color.new(color.purple, 40))
                         _already := true
                         break
             if not _already
-                _ln = line.new(bar_index, _ll.level, bar_index + _off, _ll.level,
-                     color=_col, width=1, style=line.style_dashed, extend=extend.none)
-                _lb = label.new(bar_index + _off, _ll.level,
-                     _laol_cat + " LAOL [" + _ll.tf_labels + "] in " + _box_cat,
-                     style=label.style_label_left, color=_lcol,
-                     textcolor=color.white, size=size.tiny)
-                array.push(_xlaol_lines,  _ln)
-                array.push(_xlaol_labels, _lb)
                 array.push(_xlaol_levels, _ll.level)
                 array.push(_xlaol_bear,   _is_bear)
                 array.push(_xlaol_cat,    _laol_cat)
-                array.push(_xlaol_off,    _off)
+                array.push(_xlaol_off,    0)
     0
 f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_conf, string tf_str) =>
     bear_retesting = false
@@ -732,25 +673,8 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
             if idx >= array.size(boxes)
                 continue
             bx = array.get(boxes, idx)
-            bool is_em = f_is_em_pattern(bx.pattern_text)
-            if bx.state == "FORMING" and na(bx.box_obj) and p_conf
-                bx.box_obj := box.new(bar_index, bx.top_val, bar_index + 50, bx.bottom_val,
-                    border_color = is_em ? color.new(bx.border_color, unretested_border_transparency) : bx.border_color,
-                    bgcolor = bx.box_color, extend = extend.right, border_style = line.style_dashed, border_width = 1,
-                    text = is_em ? bx.pattern_text : "", text_size = size.small,
-                    text_color = color.new(color.white, 100), text_halign = text.align_left, text_valign = text.align_top)
-            if not na(bx.box_obj)
-                if bx.has_been_retested
-                    box.set_border_style(bx.box_obj, line.style_solid)
-                    box.set_border_color(bx.box_obj, bx.border_color)
-                else
-                    box.set_border_style(bx.box_obj, line.style_dashed)
-                    box.set_border_color(bx.box_obj, color.new(bx.border_color, unretested_border_transparency))
-                box.set_bgcolor(bx.box_obj, bx.box_color)
             if bx.direction == "bear"
                 if not na(p_h) and p_h > bx.original_top
-                    if not na(bx.box_obj)
-                        box.delete(bx.box_obj)
                     array.remove(boxes, idx)
                     continue
                 if bx.state == "FORMING"
@@ -776,9 +700,6 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                                 bear_est_retest      := true
                                 bear_retest_pattern  := bx.pattern_text + " [EST+RET]"
                                 bear_retest_level    := bx.original_top
-                                if not na(bx.box_obj)
-                                    box.set_border_style(bx.box_obj, line.style_solid)
-                                    box.set_border_color(bx.box_obj, bx.border_color)
                             else
                                 bx.state             := "FORMING_FRESH"
                                 bx.has_been_retested := true
@@ -797,13 +718,8 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                             bear_retesting       := true
                             bear_retest_pattern  := bx.pattern_text + " [FRESH]"
                             bear_retest_level    := bx.original_top
-                            if not na(bx.box_obj)
-                                box.set_border_style(bx.box_obj, line.style_solid)
-                                box.set_border_color(bx.box_obj, bx.border_color)
                             if p_h > bx.bottom_val and p_h < bx.top_val
                                 bx.bottom_val := p_h
-                                if not na(bx.box_obj)
-                                    box.set_bottom(bx.box_obj, bx.bottom_val)
                 else if bx.state == "FORMING_FRESH"
                     wick_zone_touched = not na(p_h) and p_h >= bx.bottom_val and p_h < bx.original_top
                     if wick_zone_touched
@@ -836,12 +752,8 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                         bear_retest_level   := bx.original_top
                         if p_h > bx.bottom_val and p_h < bx.top_val
                             bx.bottom_val := p_h
-                            if not na(bx.box_obj)
-                                box.set_bottom(bx.box_obj, bx.bottom_val)
             else if bx.direction == "bull"
                 if not na(p_l) and p_l < bx.original_bottom
-                    if not na(bx.box_obj)
-                        box.delete(bx.box_obj)
                     array.remove(boxes, idx)
                     continue
                 if bx.state == "FORMING"
@@ -867,9 +779,6 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                                 bull_est_retest      := true
                                 bull_retest_pattern  := bx.pattern_text + " [EST+RET]"
                                 bull_retest_level    := bx.original_bottom
-                                if not na(bx.box_obj)
-                                    box.set_border_style(bx.box_obj, line.style_solid)
-                                    box.set_border_color(bx.box_obj, bx.border_color)
                             else
                                 bx.state             := "FORMING_FRESH"
                                 bx.has_been_retested := true
@@ -888,13 +797,8 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                             bull_retesting       := true
                             bull_retest_pattern  := bx.pattern_text + " [FRESH]"
                             bull_retest_level    := bx.original_bottom
-                            if not na(bx.box_obj)
-                                box.set_border_style(bx.box_obj, line.style_solid)
-                                box.set_border_color(bx.box_obj, bx.border_color)
                             if p_l < bx.top_val and p_l > bx.bottom_val
                                 bx.top_val := p_l
-                                if not na(bx.box_obj)
-                                    box.set_top(bx.box_obj, bx.top_val)
                 else if bx.state == "FORMING_FRESH"
                     wick_zone_touched = not na(p_l) and p_l <= bx.top_val and p_l > bx.original_bottom
                     if wick_zone_touched
@@ -927,8 +831,6 @@ f_manage_tf_boxes(tracked_box[] boxes, float p_h, float p_l, int p_t, bool p_con
                         bull_retest_level   := bx.original_bottom
                         if p_l < bx.top_val and p_l > bx.bottom_val
                             bx.top_val := p_l
-                            if not na(bx.box_obj)
-                                box.set_top(bx.box_obj, bx.top_val)
     [bear_retesting, bull_retesting, bear_retest_pattern, bull_retest_pattern, bear_retest_level, bull_retest_level, bear_est_retest, bull_est_retest, bear_est_retest_valid, bull_est_retest_valid]
 f_create_box(tracked_box[] boxes, string direction, float top_v, float bottom_v, int creation_t, string pattern, string tf_str, bool is_intra, bool should_show) =>
     bool result = false
@@ -953,20 +855,6 @@ f_create_box(tracked_box[] boxes, string direction, float top_v, float bottom_v,
             new_box.is_intra       := is_intra
             bool is_em = f_is_em_pattern(pattern)
             new_box.is_em_forming  := is_em
-            if is_em
-                tf_category = f_get_full_category(tf_str)
-                if tf_category == "ENTRY"
-                    new_box.box_color    := entry_box_color
-                    new_box.border_color := entry_border_color
-                else if tf_category == "SCALP"
-                    new_box.box_color    := scalp_box_color
-                    new_box.border_color := scalp_border_color
-                else
-                    new_box.box_color    := intra_box_color
-                    new_box.border_color := intra_border_color
-            else
-                new_box.box_color    := color.new(color.white, 100)
-                new_box.border_color := color.new(color.white, 100)
             array.unshift(boxes, new_box)
             result := true
     result
@@ -980,41 +868,27 @@ f_manage_hcs_boxes(hcs_box_data[] hcs_boxes, bool is_bear) =>
             if is_bear
                 if not hcs.is_broken and high > hcs.top_val
                     hcs.is_broken := true
-                    hcs.box_obj := box.new(hcs.creation_bar, hcs.top_val, bar_index + 50, hcs.bottom_val,
-                         border_color = hcs_bear_border, bgcolor = hcs_bear_bg,
-                         extend = extend.right, border_width = 2, border_style = line.style_solid,
-                         text = "HCS BROKEN [" + hcs.tf_label + "]", text_size = size.small,
-                         text_color = color.white, text_halign = text.align_left, text_valign = text.align_top)
-                if hcs.is_broken and not na(hcs.box_obj)
+                if hcs.is_broken
                     if high >= hcs.bottom_val and high <= hcs.top_val
                         any_retesting := true
                     if low < hcs.bottom_val
-                        box.delete(hcs.box_obj)
                         array.remove(hcs_boxes, idx)
                         continue
                     if low <= hcs.top_val and low >= hcs.bottom_val
                         if low < hcs.top_val
                             hcs.top_val := low
-                            box.set_top(hcs.box_obj, hcs.top_val)
             else
                 if not hcs.is_broken and low < hcs.bottom_val
                     hcs.is_broken := true
-                    hcs.box_obj := box.new(hcs.creation_bar, hcs.top_val, bar_index + 50, hcs.bottom_val,
-                         border_color = hcs_bull_border, bgcolor = hcs_bull_bg,
-                         extend = extend.right, border_width = 2, border_style = line.style_solid,
-                         text = "HCS BROKEN [" + hcs.tf_label + "]", text_size = size.small,
-                         text_color = color.white, text_halign = text.align_left, text_valign = text.align_top)
-                if hcs.is_broken and not na(hcs.box_obj)
+                if hcs.is_broken
                     if low >= hcs.bottom_val and low <= hcs.top_val
                         any_retesting := true
                     if high > hcs.top_val
-                        box.delete(hcs.box_obj)
                         array.remove(hcs_boxes, idx)
                         continue
                     if low >= hcs.bottom_val and low <= hcs.top_val
                         if low > hcs.bottom_val
                             hcs.bottom_val := low
-                            box.set_bottom(hcs.box_obj, hcs.bottom_val)
     any_retesting
 int entry_sn_bear_count = 0
 int entry_sn_bull_count = 0
@@ -1160,15 +1034,6 @@ for i = 0 to TF_COUNT - 1
                                 bx.pattern_text := bx.base_pattern + " [HCS X" + str.tostring(bx.hcs_count) + "]"
                                 array.set(arr_last_bear_hcs_time, i, i_t)
 
-                                if show_hcs_boxes and bx.hcs_count == 1 and (tf_str == "50" or tf_str == "60")
-                                    new_hcs = hcs_box_data.new()
-                                    new_hcs.top_val := bx.original_top
-                                    new_hcs.bottom_val := bx.original_bottom
-                                    new_hcs.creation_bar := bar_index
-                                    new_hcs.tf_label := array.get(TF_LABELS, i)
-                                    new_hcs.direction := "bear"
-                                    new_hcs.is_broken := false
-                                    array.push(hcs_boxes_bear, new_hcs)
                         else
                             bear_hcs_forming := true
                 if bx.direction == "bull" and new_bull_fu_sn
@@ -1180,15 +1045,6 @@ for i = 0 to TF_COUNT - 1
                                 bx.pattern_text := bx.base_pattern + " [HCS X" + str.tostring(bx.hcs_count) + "]"
                                 array.set(arr_last_bull_hcs_time, i, i_t)
 
-                                if show_hcs_boxes and bx.hcs_count == 1 and (tf_str == "50" or tf_str == "60")
-                                    new_hcs = hcs_box_data.new()
-                                    new_hcs.top_val := bx.original_top
-                                    new_hcs.bottom_val := bx.original_bottom
-                                    new_hcs.creation_bar := bar_index
-                                    new_hcs.tf_label := array.get(TF_LABELS, i)
-                                    new_hcs.direction := "bull"
-                                    new_hcs.is_broken := false
-                                    array.push(hcs_boxes_bull, new_hcs)
                         else
                             bull_hcs_forming := true
         array.set(arr_bear_hcs, i, bear_hcs)
@@ -1313,9 +1169,8 @@ if bear_intra_bt3 > 0
 if bull_intra_bt3 > 0
     last_bull_intra_laol_break_time := bull_intra_bt3
     last_bull_intra_laol_tf := bull_intra_btf3
-if show_hcs_boxes
-    bool bear_hcs_ret = f_manage_hcs_boxes(hcs_boxes_bear, true)
-    bool bull_hcs_ret = f_manage_hcs_boxes(hcs_boxes_bull, false)
+bool bear_hcs_ret = f_manage_hcs_boxes(hcs_boxes_bear, true)
+bool bull_hcs_ret = f_manage_hcs_boxes(hcs_boxes_bull, false)
 array.clear(entry_forming)
 array.clear(scalp_forming)
 array.clear(intra_forming)
@@ -1994,7 +1849,6 @@ intra_forming    := f_combine_same_tf_patterns(intra_forming)
 intra_retesting  := f_combine_same_tf_patterns(intra_retesting)
 intra_negation   := f_combine_same_tf_patterns(intra_negation)
 var string bear_forming_type      = ""
-var string bear_forming_type_prev = ""
 bool bear_has_any_intra_alert = bear_zone_forming or bear_intra_neg_forming or bear_intra_lv_forming or bear_intra_em_forming or bear_intra_est_forming
 if bear_zone_forming
     bear_forming_type := "INTRA+ZONE [" + bear_base_type + "]"
@@ -2010,26 +1864,13 @@ else if bear_base_forming and not bear_has_any_intra_alert
     bear_forming_type := bear_base_type
 else
     bear_forming_type := ""
-if bear_forming_type != "" and (na(bear_forming_rr_bar) or bar_index != bear_forming_rr_bar or bear_forming_type != bear_forming_type_prev)
-    if not na(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_tp)
-        line.delete(bear_forming_rr_pip)
+if bear_forming_type != ""
     float f_entry = math.max(open, close)
     float f_sl    = high
     float f_ext_sl = f_find_next_extreme_candle("bear", f_sl)
     if not na(f_ext_sl) and f_ext_sl > f_entry
         f_sl := f_ext_sl
-    float f_range  = f_sl - f_entry
-    float f_tp     = f_entry - (f_range * TP_MULTIPLIER)
-    float f_40pip  = f_entry - (PIP_TARGET * pip_value)
-    int   f_end    = bar_index + 3
 
-    bear_forming_rr_sl  := box.new(bar_index, f_sl, f_end, f_entry, border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 90), border_width=1, border_style=line.style_dashed, text="FORMING", text_color=color.new(color.white, 100), text_size=size.tiny)
-    bear_forming_rr_tp  := box.new(bar_index, f_entry, f_end, f_tp,  border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 90), border_width=1, border_style=line.style_dashed, text=bear_forming_type, text_color=color.new(color.white, 100), text_size=size.tiny)
-    bear_forming_rr_pip := line.new(bar_index, f_40pip, f_end, f_40pip, color=color.new(rr_tp_color, 60), style=line.style_dotted, width=1)
-    bear_forming_rr_bar  := bar_index
-    bear_forming_type_prev := bear_forming_type
     alert("BEAR FORMING | SL=" + str.tostring(f_sl, format.mintick) + " | Entry=" + str.tostring(f_entry, format.mintick), alert.freq_once_per_bar)
 bool bear_confirmed_triggered    = false
 string bear_confirmed_type       = ""
@@ -2054,36 +1895,14 @@ else if bear_base_confirmed and not bear_has_any_intra_confirmed
     bear_confirmed_type := bear_base_type
     bear_confirmed_triggered := true
 if bear_confirmed_triggered
-    if not na(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_tp)
-        line.delete(bear_forming_rr_pip)
-        bear_forming_rr_sl  := na
-        bear_forming_rr_tp  := na
-        bear_forming_rr_pip := na
-        bear_forming_rr_bar := na
-
     bear_entry   = math.max(open, close)
     bear_sl      = high
     extended_sl  = f_find_next_extreme_candle("bear", bear_sl)
     if not na(extended_sl) and extended_sl > bear_entry
         bear_sl := extended_sl
-    box_range    = bear_sl - bear_entry
-    bear_tp      = bear_entry - (box_range * TP_MULTIPLIER)
-    target_40pip = bear_entry - (PIP_TARGET * pip_value)
-    end_bar      = bar_index + 3
 
-    new_rr = rr_box_set.new()
-    new_rr.sl_box    := box.new(bar_index, bear_sl,    end_bar, bear_entry, border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 85), border_width=1)
-    new_rr.tp_box    := box.new(bar_index, bear_entry, end_bar, bear_tp,   border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 85), border_width=1, text=bear_confirmed_type, text_color=color.new(color.white, 100), text_size=size.tiny)
-    new_rr.pip_line  := line.new(bar_index, target_40pip, end_bar, target_40pip, color=color.new(rr_tp_color, 60), style=line.style_solid, width=1)
-    new_rr.direction := "bear"
-    new_rr.sl_level  := bear_sl
-    new_rr.creation_bar := bar_index
-    array.push(rr_boxes_bear, new_rr)
     alert("BEAR CONFIRMED | SL=" + str.tostring(bear_sl, format.mintick) + " | Entry=" + str.tostring(bear_entry, format.mintick), alert.freq_once_per_bar)
 var string bull_forming_type      = ""
-var string bull_forming_type_prev = ""
 bool bull_has_any_intra_alert = bull_zone_forming or bull_intra_neg_forming or bull_intra_lv_forming or bull_intra_em_forming or bull_intra_est_forming
 
 if bull_zone_forming
@@ -2100,27 +1919,13 @@ else if bull_base_forming and not bull_has_any_intra_alert
     bull_forming_type := bull_base_type
 else
     bull_forming_type := ""
-if bull_forming_type != "" and (na(bull_forming_rr_bar) or bar_index != bull_forming_rr_bar or bull_forming_type != bull_forming_type_prev)
-    if not na(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_tp)
-        line.delete(bull_forming_rr_pip)
-
+if bull_forming_type != ""
     float f_entry  = math.min(open, close)
     float f_sl     = low
     float f_ext_sl = f_find_next_extreme_candle("bull", f_sl)
     if not na(f_ext_sl) and f_ext_sl < f_entry
         f_sl := f_ext_sl
-    float f_range  = f_entry - f_sl
-    float f_tp     = f_entry + (f_range * TP_MULTIPLIER)
-    float f_40pip  = f_entry + (PIP_TARGET * pip_value)
-    int   f_end    = bar_index + 3
 
-    bull_forming_rr_sl  := box.new(bar_index, f_entry, f_end, f_sl,  border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 90), border_width=1, border_style=line.style_dashed, text="FORMING", text_color=color.new(color.white, 100), text_size=size.tiny)
-    bull_forming_rr_tp  := box.new(bar_index, f_tp,    f_end, f_entry, border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 90), border_width=1, border_style=line.style_dashed, text=bull_forming_type, text_color=color.new(color.white, 100), text_size=size.tiny)
-    bull_forming_rr_pip := line.new(bar_index, f_40pip, f_end, f_40pip, color=color.new(rr_tp_color, 60), style=line.style_dotted, width=1)
-    bull_forming_rr_bar  := bar_index
-    bull_forming_type_prev := bull_forming_type
 
     alert("BULL FORMING | SL=" + str.tostring(f_sl, format.mintick) + " | Entry=" + str.tostring(f_entry, format.mintick), alert.freq_once_per_bar)
 bool bull_confirmed_triggered     = false
@@ -2145,126 +1950,39 @@ else if bull_base_confirmed and not bull_has_any_intra_confirmed
     bull_confirmed_type := bull_base_type
     bull_confirmed_triggered := true
 if bull_confirmed_triggered
-    if not na(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_tp)
-        line.delete(bull_forming_rr_pip)
-        bull_forming_rr_sl  := na
-        bull_forming_rr_tp  := na
-        bull_forming_rr_pip := na
-        bull_forming_rr_bar := na
     bull_entry   = math.min(open, close)
     bull_sl      = low
     extended_sl  = f_find_next_extreme_candle("bull", bull_sl)
     if not na(extended_sl) and extended_sl < bull_entry
         bull_sl := extended_sl
-    box_range    = bull_entry - bull_sl
-    bull_tp      = bull_entry + (box_range * TP_MULTIPLIER)
-    target_40pip = bull_entry + (PIP_TARGET * pip_value)
-    end_bar      = bar_index + 3
-    new_rr = rr_box_set.new()
-    new_rr.sl_box    := box.new(bar_index, bull_entry, end_bar, bull_sl,    border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 85), border_width=1)
-    new_rr.tp_box    := box.new(bar_index, bull_tp,    end_bar, bull_entry, border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 85), border_width=1, text=bull_confirmed_type, text_color=color.new(color.white, 100), text_size=size.tiny)
-    new_rr.pip_line  := line.new(bar_index, target_40pip, end_bar, target_40pip, color=color.new(rr_tp_color, 60), style=line.style_solid, width=1)
-    new_rr.direction := "bull"
-    new_rr.sl_level  := bull_sl
-    new_rr.creation_bar := bar_index
-    array.push(rr_boxes_bull, new_rr)
     alert("BULL CONFIRMED | SL=" + str.tostring(bull_sl, format.mintick) + " | Entry=" + str.tostring(bull_entry, format.mintick), alert.freq_once_per_bar)
 if final_entry_bear
-    if not na(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_sl)
-        box.delete(bear_forming_rr_tp)
-        line.delete(bear_forming_rr_pip)
-        bear_forming_rr_sl  := na
-        bear_forming_rr_tp  := na
-        bear_forming_rr_pip := na
-        bear_forming_rr_bar := na
     bear_entry   = math.max(open, close)
     bear_sl      = high
     extended_sl  = f_find_next_extreme_candle("bear", bear_sl)
     if not na(extended_sl) and extended_sl > bear_entry
         bear_sl := extended_sl
-    box_range    = bear_sl - bear_entry
-    bear_tp      = bear_entry - (box_range * TP_MULTIPLIER)
-    target_40pip = bear_entry - (PIP_TARGET * pip_value)
-    end_bar      = bar_index + 3
-    new_rr = rr_box_set.new()
-    new_rr.sl_box    := box.new(bar_index, bear_sl,    end_bar, bear_entry, border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 85), border_width=1)
-    new_rr.tp_box    := box.new(bar_index, bear_entry, end_bar, bear_tp,   border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 85), border_width=1, text="FINAL\n" + final_entry_bear_pattern, text_color=color.new(color.white, 100), text_size=size.tiny)
-    new_rr.pip_line  := line.new(bar_index, target_40pip, end_bar, target_40pip, color=color.new(rr_tp_color, 60), style=line.style_solid, width=1)
-    new_rr.direction := "bear"
-    new_rr.sl_level  := bear_sl
-    new_rr.creation_bar := bar_index
-    array.push(rr_boxes_bear, new_rr)
     alert("FINAL ENTRY BEAR | SL=" + str.tostring(bear_sl, format.mintick) + " | Entry=" + str.tostring(bear_entry, format.mintick), alert.freq_once_per_bar)
 if final_entry_bull
-    if not na(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_sl)
-        box.delete(bull_forming_rr_tp)
-        line.delete(bull_forming_rr_pip)
-        bull_forming_rr_sl  := na
-        bull_forming_rr_tp  := na
-        bull_forming_rr_pip := na
-        bull_forming_rr_bar := na
     bull_entry   = math.min(open, close)
     bull_sl      = low
     extended_sl  = f_find_next_extreme_candle("bull", bull_sl)
     if not na(extended_sl) and extended_sl < bull_entry
         bull_sl := extended_sl
-    box_range    = bull_entry - bull_sl
-    bull_tp      = bull_entry + (box_range * TP_MULTIPLIER)
-    target_40pip = bull_entry + (PIP_TARGET * pip_value)
-    end_bar      = bar_index + 3
-    new_rr = rr_box_set.new()
-    new_rr.sl_box    := box.new(bar_index, bull_entry, end_bar, bull_sl,    border_color=color.new(rr_sl_color, 60), bgcolor=color.new(rr_sl_color, 85), border_width=1)
-    new_rr.tp_box    := box.new(bar_index, bull_tp,    end_bar, bull_entry, border_color=color.new(rr_tp_color, 60), bgcolor=color.new(rr_tp_color, 85), border_width=1, text="FINAL\n" + final_entry_bull_pattern, text_color=color.new(color.white, 100), text_size=size.tiny)
-    new_rr.pip_line  := line.new(bar_index, target_40pip, end_bar, target_40pip, color=color.new(rr_tp_color, 60), style=line.style_solid, width=1)
-    new_rr.direction := "bull"
-    new_rr.sl_level  := bull_sl
-    new_rr.creation_bar := bar_index
-    array.push(rr_boxes_bull, new_rr)
     alert("FINAL ENTRY BULL | SL=" + str.tostring(bull_sl, format.mintick) + " | Entry=" + str.tostring(bull_entry, format.mintick), alert.freq_once_per_bar)
-if array.size(rr_boxes_bear) > 0
-    for idx = array.size(rr_boxes_bear) - 1 to 0
-        rr = array.get(rr_boxes_bear, idx)
-        if high > rr.sl_level
-            box.delete(rr.sl_box)
-            box.delete(rr.tp_box)
-            line.delete(rr.pip_line)
-            array.remove(rr_boxes_bear, idx)
-if array.size(rr_boxes_bull) > 0
-    for idx = array.size(rr_boxes_bull) - 1 to 0
-        rr = array.get(rr_boxes_bull, idx)
-        if low < rr.sl_level
-            box.delete(rr.sl_box)
-            box.delete(rr.tp_box)
-            line.delete(rr.pip_line)
-            array.remove(rr_boxes_bull, idx)
-
 bool _xlaol_hit_bear_entry = false
 bool _xlaol_hit_bull_entry = false
 bool _xlaol_hit_bear_scalp = false
 bool _xlaol_hit_bull_scalp = false
 
-if array.size(_xlaol_lines) > 0
-    for _i = array.size(_xlaol_lines) - 1 to 0
+if array.size(_xlaol_levels) > 0
+    for _i = array.size(_xlaol_levels) - 1 to 0
         _lvl  = array.get(_xlaol_levels, _i)
         _is_b = array.get(_xlaol_bear,   _i)
         _off  = array.get(_xlaol_off,    _i)
         _cat  = array.get(_xlaol_cat,    _i)
-        _lbl  = array.get(_xlaol_labels, _i)
-        _ln   = array.get(_xlaol_lines,  _i)
-        if not na(_lbl)
-            label.set_x(_lbl, bar_index + _off)
-        if not na(_ln)
-            line.set_x2(_ln, bar_index + _off)
         _hit = _is_b ? high > _lvl : low < _lvl
         if _hit
-            line.delete(_ln)
-            label.delete(_lbl)
-            array.remove(_xlaol_lines,  _i)
-            array.remove(_xlaol_labels, _i)
             array.remove(_xlaol_levels, _i)
             array.remove(_xlaol_off,    _i)
             array.remove(_xlaol_bear,   _i)
