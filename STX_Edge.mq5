@@ -1474,3 +1474,576 @@ void RetrieveAllTFData()
   }
 
 //+------------------------------------------------------------------+
+//|                                                                    |
+//|       ZONE BOX CREATION AND MANAGEMENT (Part 5)                   |
+//|                                                                    |
+//+------------------------------------------------------------------+
+
+//+------------------------------------------------------------------+
+//| CreateTrackedBox - Create a new tracked zone box                   |
+//| Exact translation of f_create_box from Pine Script                 |
+//| Returns true if box was created, false if duplicate or invalid     |
+//+------------------------------------------------------------------+
+bool CreateTrackedBox(int tf_idx, string direction, double top_v, double bottom_v,
+                      datetime creation_t, string pattern, string tf_str, bool is_intra)
+  {
+//--- Validate inputs
+   if(pattern == "" || top_v == 0.0 || bottom_v == 0.0 || creation_t == 0)
+      return false;
+
+//--- Check for duplicate (same creation_time, direction, timeframe)
+   int count = GetTFBoxesCount(tf_idx);
+   TrackedBox existing;
+   for(int i = 0; i < count; i++)
+     {
+      GetTFBox(tf_idx, i, existing);
+      if(existing.creation_time == creation_t &&
+         existing.direction == direction &&
+         existing.timeframe_str == tf_str)
+         return false;  // Duplicate found
+     }
+
+//--- Create new TrackedBox
+   TrackedBox new_box;
+   new_box.direction       = direction;
+   new_box.state           = "FORMING";
+   new_box.top_val         = top_v;
+   new_box.bottom_val      = bottom_v;
+   new_box.original_top    = top_v;
+   new_box.original_bottom = bottom_v;
+   new_box.creation_time   = creation_t;
+   new_box.pattern_text    = pattern;
+   new_box.base_pattern    = pattern;
+   new_box.timeframe_str   = tf_str;
+   new_box.is_intra        = is_intra;
+   new_box.obj_name        = "";       // Visual not created yet
+   new_box.text_obj_name   = "";
+   new_box.has_est_retest  = false;
+   new_box.retest_type     = "";
+   new_box.protection_active    = false;
+   new_box.protection_end_time  = 0;
+   new_box.has_been_retested    = false;
+   new_box.est_wick_high        = 0.0;
+   new_box.est_wick_low         = 0.0;
+   new_box.completed_est_retest = false;
+   new_box.just_established     = false;
+   new_box.hcs_count            = 0;
+   new_box.used                 = true;
+
+//--- Determine colors based on EM pattern status
+   bool is_em = IsEmPattern(pattern);
+   new_box.is_em_forming = is_em;
+
+   if(is_em)
+     {
+      int tf_minutes = TF_MINUTES[tf_idx];
+      string tf_category = GetFullCategory(tf_minutes);
+
+      if(tf_category == "ENTRY")
+        {
+         new_box.box_clr    = (color)entry_box_color;
+         new_box.border_clr = (color)entry_border_color;
+        }
+      else if(tf_category == "SCALP")
+        {
+         new_box.box_clr    = (color)scalp_box_color;
+         new_box.border_clr = (color)scalp_border_color;
+        }
+      else  // INTRA
+        {
+         new_box.box_clr    = (color)intra_box_color;
+         new_box.border_clr = (color)intra_border_color;
+        }
+     }
+   else
+     {
+      // Non-EM patterns: fully transparent (invisible)
+      new_box.box_clr    = clrNONE;
+      new_box.border_clr = clrNONE;
+     }
+
+//--- Add to the TF box array (equivalent to array.unshift/push)
+   AddTFBox(tf_idx, new_box);
+   return true;
+  }
+
+//+------------------------------------------------------------------+
+//| ManageTFBoxes - Manage box lifecycle and state transitions         |
+//| Exact translation of f_manage_tf_boxes from Pine Script            |
+//| The large state machine handling all box states                    |
+//+------------------------------------------------------------------+
+void ManageTFBoxes(int tf_idx, double p_h, double p_l, datetime p_t,
+                   bool p_conf, string tf_str,
+                   bool &bear_ret, bool &bull_ret,
+                   string &bear_pat, string &bull_pat,
+                   double &bear_lvl, double &bull_lvl,
+                   bool &bear_est, bool &bull_est,
+                   bool &bear_est_valid, bool &bull_est_valid)
+  {
+//--- Initialize output parameters
+   bear_ret       = false;
+   bull_ret       = false;
+   bear_pat       = "";
+   bull_pat       = "";
+   bear_lvl       = 0.0;
+   bull_lvl       = 0.0;
+   bear_est       = false;
+   bull_est       = false;
+   bear_est_valid = false;
+   bull_est_valid = false;
+
+   int count = GetTFBoxesCount(tf_idx);
+   if(count <= 0)
+      return;
+
+//--- Calculate the far-future time for extending boxes to the right
+   datetime extend_time = iTime(_Symbol, PERIOD_CURRENT, 0) +
+                          PeriodSeconds(PERIOD_CURRENT) * 50;
+
+//--- Iterate backwards for safe removal
+   for(int idx = count - 1; idx >= 0; idx--)
+     {
+      //--- Re-check count in case items were removed
+      if(idx >= GetTFBoxesCount(tf_idx))
+         continue;
+
+      TrackedBox bx;
+      GetTFBox(tf_idx, idx, bx);
+
+      bool is_em = IsEmPattern(bx.pattern_text);
+
+      //--- FORMING state: create visual object when confirmed
+      if(bx.state == "FORMING" && bx.obj_name == "" && p_conf)
+        {
+         //--- Generate unique object names
+         bx.obj_name = GenerateObjName("STX_Box");
+
+         //--- Determine border color: EM patterns get 100% alpha (invisible) when unretested
+         color use_border_clr;
+         if(is_em)
+            use_border_clr = clrNONE;  // Invisible border for unretested EM
+         else
+            use_border_clr = bx.border_clr;
+
+         //--- Create the rectangle object
+         CreateRectangleObj(bx.obj_name, bx.creation_time, bx.top_val,
+                           extend_time, bx.bottom_val,
+                           use_border_clr, bx.box_clr,
+                           STYLE_DASH, 1, true, "");
+
+         //--- For EM patterns, create text object showing pattern
+         if(is_em)
+           {
+            bx.text_obj_name = GenerateObjName("STX_BoxTxt");
+            CreateTextObj(bx.text_obj_name, bx.creation_time, bx.top_val,
+                         bx.pattern_text, clrWhite, 8);
+           }
+
+         //--- Save changes back to array
+         SetTFBox(tf_idx, idx, bx);
+        }
+
+      //--- Visual updates for existing rectangles on each tick
+      if(bx.obj_name != "")
+        {
+         if(bx.has_been_retested)
+           {
+            //--- Retested: solid border with full color
+            SetRectBorderStyle(bx.obj_name, STYLE_SOLID, bx.border_clr);
+           }
+         else
+           {
+            //--- Not retested: dashed border
+            if(is_em)
+               SetRectBorderStyle(bx.obj_name, STYLE_DASH, clrNONE);  // Invisible
+            else
+               SetRectBorderStyle(bx.obj_name, STYLE_DASH, bx.border_clr);
+           }
+
+         //--- Extend right side to keep box at chart edge
+         UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                         extend_time, bx.bottom_val);
+        }
+
+      //=== BEAR BOX LOGIC ===
+      if(bx.direction == "bear")
+        {
+         //--- Invalidation: price breaks above original top
+         if(p_h > bx.original_top)
+           {
+            if(bx.obj_name != "")
+               DeleteObj(bx.obj_name);
+            if(bx.text_obj_name != "")
+               DeleteObj(bx.text_obj_name);
+            RemoveTFBox(tf_idx, idx);
+            continue;
+           }
+
+         //--- State: FORMING
+         if(bx.state == "FORMING")
+           {
+            if(p_conf)
+              {
+               bx.state            = "ESTABLISHED";
+               bx.just_established = true;
+
+               //--- Calculate protection end time
+               int tf_minutes       = TF_MINUTES[tf_idx];
+               int protection_bars  = IsEntry(tf_minutes) ? 3 : 1;
+               bx.protection_end_time = p_t + (datetime)(tf_minutes * 60 * protection_bars);
+               bx.protection_active   = true;
+               bx.est_wick_high       = p_h;
+               bx.est_wick_low        = p_l;
+
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: ESTABLISHED
+         else if(bx.state == "ESTABLISHED")
+           {
+            bool wick_zone_touched = (p_h >= bx.bottom_val && p_h < bx.original_top);
+
+            if(bx.protection_active)
+              {
+               if(wick_zone_touched)
+                 {
+                  //--- Check if wick is within established wick range
+                  bool wick_in_range = (bx.est_wick_high > 0.0 && bx.est_wick_low > 0.0 &&
+                                       p_h >= bx.est_wick_low && p_h <= bx.est_wick_high);
+                  if(wick_in_range)
+                    {
+                     bx.state             = "EST_RETEST";
+                     bx.has_est_retest    = true;
+                     bx.has_been_retested = true;
+                     bx.retest_type       = "EST+RETEST";
+                     bear_est             = true;
+                     bear_pat             = bx.pattern_text + " [EST+RET]";
+                     bear_lvl             = bx.original_top;
+
+                     //--- Visual: switch to solid border
+                     if(bx.obj_name != "")
+                        SetRectBorderStyle(bx.obj_name, STYLE_SOLID, bx.border_clr);
+                    }
+                  else
+                    {
+                     bx.state             = "FORMING_FRESH";
+                     bx.has_been_retested = true;
+                     bear_ret             = true;
+                     bear_pat             = bx.pattern_text + " [FRESH FORMING]";
+                     bear_lvl             = bx.original_top;
+                    }
+                 }
+
+               //--- Check protection expiration
+               if(p_conf && p_t >= bx.protection_end_time)
+                 {
+                  bx.protection_active = false;
+                  if(bx.state == "ESTABLISHED")
+                    {
+                     bx.retest_type          = "FRESH";
+                     bx.completed_est_retest = true;
+                    }
+                 }
+              }
+            else
+              {
+               //--- No protection active
+               if(wick_zone_touched)
+                 {
+                  bx.state             = "RESPECTED";
+                  bx.has_been_retested = true;
+                  bear_ret             = true;
+                  bear_pat             = bx.pattern_text + " [FRESH]";
+                  bear_lvl             = bx.original_top;
+
+                  //--- Visual: switch to solid border
+                  if(bx.obj_name != "")
+                     SetRectBorderStyle(bx.obj_name, STYLE_SOLID, bx.border_clr);
+
+                  //--- Shrink box: adjust bottom
+                  if(p_h > bx.bottom_val && p_h < bx.top_val)
+                    {
+                     bx.bottom_val = p_h;
+                     if(bx.obj_name != "")
+                        UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                                        extend_time, bx.bottom_val);
+                    }
+                 }
+              }
+            SetTFBox(tf_idx, idx, bx);
+           }
+         //--- State: FORMING_FRESH
+         else if(bx.state == "FORMING_FRESH")
+           {
+            bool wick_zone_touched = (p_h >= bx.bottom_val && p_h < bx.original_top);
+
+            if(wick_zone_touched)
+              {
+               bear_ret = true;
+               bear_pat = bx.pattern_text + " [FRESH FORMING]";
+               bear_lvl = bx.original_top;
+              }
+
+            //--- Check protection expiration -> transition to RESPECTED
+            if(p_conf && p_t >= bx.protection_end_time)
+              {
+               bx.state                = "RESPECTED";
+               bx.protection_active    = false;
+               bx.retest_type          = "FRESH";
+               bx.completed_est_retest = true;
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: EST_RETEST
+         else if(bx.state == "EST_RETEST")
+           {
+            bool wick_zone_touched = (p_h >= bx.bottom_val && p_h < bx.original_top);
+
+            bear_est = true;
+            bear_pat = bx.pattern_text + " [EST+RET]";
+            bear_lvl = bx.original_top;
+
+            if(wick_zone_touched)
+               bear_ret = true;
+
+            //--- Check protection expiration -> transition to RESPECTED
+            if(p_conf && p_t >= bx.protection_end_time)
+              {
+               bear_est_valid          = true;
+               bx.state                = "RESPECTED";
+               bx.protection_active    = false;
+               bx.retest_type          = "FRESH";
+               bx.completed_est_retest = true;
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: RESPECTED
+         else if(bx.state == "RESPECTED")
+           {
+            //--- Check if price is touching the box
+            bool is_touching = (p_h >= bx.bottom_val && p_l <= bx.top_val);
+
+            if(is_touching)
+              {
+               bear_ret = true;
+               bear_pat = bx.pattern_text + " [" + bx.retest_type + "]";
+               bear_lvl = bx.original_top;
+
+               //--- Shrink box: adjust bottom
+               if(p_h > bx.bottom_val && p_h < bx.top_val)
+                 {
+                  bx.bottom_val = p_h;
+                  if(bx.obj_name != "")
+                     UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                                     extend_time, bx.bottom_val);
+                  SetTFBox(tf_idx, idx, bx);
+                 }
+              }
+           }
+        }
+      //=== BULL BOX LOGIC ===
+      else if(bx.direction == "bull")
+        {
+         //--- Invalidation: price breaks below original bottom
+         if(p_l < bx.original_bottom)
+           {
+            if(bx.obj_name != "")
+               DeleteObj(bx.obj_name);
+            if(bx.text_obj_name != "")
+               DeleteObj(bx.text_obj_name);
+            RemoveTFBox(tf_idx, idx);
+            continue;
+           }
+
+         //--- State: FORMING
+         if(bx.state == "FORMING")
+           {
+            if(p_conf)
+              {
+               bx.state            = "ESTABLISHED";
+               bx.just_established = true;
+
+               //--- Calculate protection end time
+               int tf_minutes       = TF_MINUTES[tf_idx];
+               int protection_bars  = IsEntry(tf_minutes) ? 3 : 1;
+               bx.protection_end_time = p_t + (datetime)(tf_minutes * 60 * protection_bars);
+               bx.protection_active   = true;
+               bx.est_wick_high       = p_h;
+               bx.est_wick_low        = p_l;
+
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: ESTABLISHED
+         else if(bx.state == "ESTABLISHED")
+           {
+            bool wick_zone_touched = (p_l <= bx.top_val && p_l > bx.original_bottom);
+
+            if(bx.protection_active)
+              {
+               if(wick_zone_touched)
+                 {
+                  //--- Check if wick is within established wick range
+                  bool wick_in_range = (bx.est_wick_high > 0.0 && bx.est_wick_low > 0.0 &&
+                                       p_l >= bx.est_wick_low && p_l <= bx.est_wick_high);
+                  if(wick_in_range)
+                    {
+                     bx.state             = "EST_RETEST";
+                     bx.has_est_retest    = true;
+                     bx.has_been_retested = true;
+                     bx.retest_type       = "EST+RETEST";
+                     bull_est             = true;
+                     bull_pat             = bx.pattern_text + " [EST+RET]";
+                     bull_lvl             = bx.original_bottom;
+
+                     //--- Visual: switch to solid border
+                     if(bx.obj_name != "")
+                        SetRectBorderStyle(bx.obj_name, STYLE_SOLID, bx.border_clr);
+                    }
+                  else
+                    {
+                     bx.state             = "FORMING_FRESH";
+                     bx.has_been_retested = true;
+                     bull_ret             = true;
+                     bull_pat             = bx.pattern_text + " [FRESH FORMING]";
+                     bull_lvl             = bx.original_bottom;
+                    }
+                 }
+
+               //--- Check protection expiration
+               if(p_conf && p_t >= bx.protection_end_time)
+                 {
+                  bx.protection_active = false;
+                  if(bx.state == "ESTABLISHED")
+                    {
+                     bx.retest_type          = "FRESH";
+                     bx.completed_est_retest = true;
+                    }
+                 }
+              }
+            else
+              {
+               //--- No protection active
+               if(wick_zone_touched)
+                 {
+                  bx.state             = "RESPECTED";
+                  bx.has_been_retested = true;
+                  bull_ret             = true;
+                  bull_pat             = bx.pattern_text + " [FRESH]";
+                  bull_lvl             = bx.original_bottom;
+
+                  //--- Visual: switch to solid border
+                  if(bx.obj_name != "")
+                     SetRectBorderStyle(bx.obj_name, STYLE_SOLID, bx.border_clr);
+
+                  //--- Shrink box: adjust top
+                  if(p_l < bx.top_val && p_l > bx.bottom_val)
+                    {
+                     bx.top_val = p_l;
+                     if(bx.obj_name != "")
+                        UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                                        extend_time, bx.bottom_val);
+                    }
+                 }
+              }
+            SetTFBox(tf_idx, idx, bx);
+           }
+         //--- State: FORMING_FRESH
+         else if(bx.state == "FORMING_FRESH")
+           {
+            bool wick_zone_touched = (p_l <= bx.top_val && p_l > bx.original_bottom);
+
+            if(wick_zone_touched)
+              {
+               bull_ret = true;
+               bull_pat = bx.pattern_text + " [FRESH FORMING]";
+               bull_lvl = bx.original_bottom;
+              }
+
+            //--- Check protection expiration -> transition to RESPECTED
+            if(p_conf && p_t >= bx.protection_end_time)
+              {
+               bx.state                = "RESPECTED";
+               bx.protection_active    = false;
+               bx.retest_type          = "FRESH";
+               bx.completed_est_retest = true;
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: EST_RETEST
+         else if(bx.state == "EST_RETEST")
+           {
+            bool wick_zone_touched = (p_l <= bx.top_val && p_l > bx.original_bottom);
+
+            bull_est = true;
+            bull_pat = bx.pattern_text + " [EST+RET]";
+            bull_lvl = bx.original_bottom;
+
+            if(wick_zone_touched)
+               bull_ret = true;
+
+            //--- Check protection expiration -> transition to RESPECTED
+            if(p_conf && p_t >= bx.protection_end_time)
+              {
+               bull_est_valid          = true;
+               bx.state                = "RESPECTED";
+               bx.protection_active    = false;
+               bx.retest_type          = "FRESH";
+               bx.completed_est_retest = true;
+               SetTFBox(tf_idx, idx, bx);
+              }
+           }
+         //--- State: RESPECTED
+         else if(bx.state == "RESPECTED")
+           {
+            //--- Check if price is touching the box
+            bool is_touching = (p_l <= bx.top_val && p_h >= bx.bottom_val);
+
+            if(is_touching)
+              {
+               bull_ret = true;
+               bull_pat = bx.pattern_text + " [" + bx.retest_type + "]";
+               bull_lvl = bx.original_bottom;
+
+               //--- Shrink box: adjust top
+               if(p_l < bx.top_val && p_l > bx.bottom_val)
+                 {
+                  bx.top_val = p_l;
+                  if(bx.obj_name != "")
+                     UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                                     extend_time, bx.bottom_val);
+                  SetTFBox(tf_idx, idx, bx);
+                 }
+              }
+           }
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
+//| ExtendAllBoxes - Extend all active boxes to the right chart edge  |
+//| Called on each tick to keep boxes visually extending right         |
+//+------------------------------------------------------------------+
+void ExtendAllBoxes()
+  {
+   datetime extend_time = iTime(_Symbol, PERIOD_CURRENT, 0) +
+                          PeriodSeconds(PERIOD_CURRENT) * 50;
+
+   for(int tf = 0; tf < TF_COUNT; tf++)
+     {
+      int count = GetTFBoxesCount(tf);
+      TrackedBox bx;
+
+      for(int i = 0; i < count; i++)
+        {
+         GetTFBox(tf, i, bx);
+         if(bx.obj_name != "")
+           {
+            UpdateRectCoords(bx.obj_name, bx.creation_time, bx.top_val,
+                            extend_time, bx.bottom_val);
+           }
+        }
+     }
+  }
+
+//+------------------------------------------------------------------+
