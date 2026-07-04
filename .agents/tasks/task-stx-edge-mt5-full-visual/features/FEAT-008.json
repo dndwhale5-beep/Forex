@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-008",
+  "type": "feat",
+  "description": "Part 8/10: Add RR (Risk/Reward) box system with FULL VISUAL drawing - red SL boxes, green TP boxes, pip target lines. Both forming (dashed border) and confirmed (solid border) states. Plus Final Entry RR boxes.",
+  "status": "completed",
+  "steps": [
+    "Implement bear forming RR box logic: When bear setup is forming, create 3 objects: SL box (OBJ_RECTANGLE, red color 90% transparent, dashed border), TP box (OBJ_RECTANGLE, green color 90% transparent, dashed border), pip line (OBJ_TREND, green dotted). Calculate entry=max(open,close), SL=high (extended by FindNextExtremeCandle), TP=entry-(range*TP_MULTIPLIER), 40pip=entry-(PIP_TARGET*pip_value). Delete old forming RR before creating new.",
+    "Implement bull forming RR box logic: Same but entry=min(open,close), SL=low (extended), TP=entry+(range*TP_MULTIPLIER), 40pip=entry+(PIP_TARGET*pip_value)",
+    "Implement FindNextExtremeCandle() function (f_find_next_extreme_candle equivalent) - looks back up to 500 bars for price beyond SL level",
+    "Implement bear confirmed RR box logic: When bear setup confirms, delete forming RR, create solid-border RR boxes. Add text to TP box showing the confirmed type (e.g., 'INTRA+ZONE [S1]'). Store in rr_boxes_bear array.",
+    "Implement bull confirmed RR box logic: Same pattern for bull direction",
+    "Implement Final Entry RR boxes: When final_entry_bear/bull triggers, create RR boxes with 'FINAL\\n' + pattern text in TP box",
+    "Implement RR box invalidation: For bear RR, if high > sl_level, delete all 3 objects and remove from array. For bull RR, if low < sl_level, delete all 3 objects and remove.",
+    "All RR boxes should have end_bar = bar_index + 3 (fixed width, not extending)",
+    "Commit and push with message 'feat: STX Edge MT5 Part 8/10 - RR boxes with visual drawing'"
+  ],
+  "acceptance_criteria": [
+    "Forming RR shows as dashed-border red (SL) and green (TP) rectangles",
+    "Confirmed RR shows as solid-border rectangles",
+    "Pip target line shows as dotted green line at 40-pip level",
+    "Text labels show pattern type in TP box",
+    "RR boxes are properly deleted when invalidated",
+    "Final Entry boxes show 'FINAL' prefix in text"
+  ],
+  "verification": [
+    "Read the RR box code and verify calculations match Pine Script exactly",
+    "Verify border styles: dashed for forming, solid for confirmed"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented as part of complete single-file rewrite in FEAT-006."
+}

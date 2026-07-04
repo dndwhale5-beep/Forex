@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Part 2/10: Add global state arrays and helper function declarations. All the 'var' arrays from Pine Script (arr_fu_bear, arr_fu_bull, arr_sn_bear, etc. - approximately 60+ arrays) plus the tracked_box arrays for each TF (tf1_boxes through tf25_boxes), LAOL arrays, HCS arrays, RR arrays, and the display/forming arrays.",
+  "status": "completed",
+  "steps": [
+    "Add global arrays for pattern detection: arr_fu_bear[TF_COUNT], arr_fu_bull[TF_COUNT], arr_sn_bear[TF_COUNT], arr_sn_bull[TF_COUNT], arr_first_bear[TF_COUNT], arr_first_bull[TF_COUNT], arr_second_bear[TF_COUNT], arr_second_bull[TF_COUNT], arr_third_bear[TF_COUNT], arr_third_bull[TF_COUNT], arr_laol_bear[TF_COUNT], arr_laol_bull[TF_COUNT], arr_laol_first_bear[TF_COUNT], arr_laol_first_bull[TF_COUNT]",
+    "Add timeframe data arrays: arr_tf_h[TF_COUNT], arr_tf_l[TF_COUNT], arr_tf_bt[TF_COUNT], arr_tf_bb[TF_COUNT], arr_tf_t[TF_COUNT], arr_tf_conf[TF_COUNT]",
+    "Add seq_state arrays: arr_bear_seq[TF_COUNT], arr_bull_seq[TF_COUNT]",
+    "Add HCS arrays: arr_bear_hcs[TF_COUNT], arr_bull_hcs[TF_COUNT], arr_bear_hcs_forming[TF_COUNT], arr_bull_hcs_forming[TF_COUNT], arr_last_bear_hcs_time[TF_COUNT], arr_last_bull_hcs_time[TF_COUNT], arr_bear_hcs_broken[TF_COUNT], arr_bull_hcs_broken[TF_COUNT], arr_bear_hcs_retesting[TF_COUNT], arr_bull_hcs_retesting[TF_COUNT]",
+    "Add third/laol step tracking arrays: arr_bear_third_step[TF_COUNT], arr_bear_third_ref_h[TF_COUNT], etc. for both bear and bull",
+    "Add retesting arrays: arr_bear_retesting[TF_COUNT], arr_bull_retesting[TF_COUNT], arr_bear_est_retest[TF_COUNT], arr_bull_est_retest[TF_COUNT], arr_bear_est_retest_VALID[TF_COUNT], arr_bull_est_retest_VALID[TF_COUNT], arr_bear_retest_pattern[TF_COUNT], arr_bull_retest_pattern[TF_COUNT], arr_bear_retest_level[TF_COUNT], arr_bull_retest_level[TF_COUNT]",
+    "Add LAOL candle arrays: arr_laol_candle_bear[TF_COUNT], arr_laol_candle_bull[TF_COUNT]",
+    "Add TrackedBox dynamic arrays for all 25 TFs using resizable array approach (TrackedBox arrays with size tracking)",
+    "Add LaolLineData dynamic arrays: bear_laol_lines, bull_laol_lines, bear_intra_laol_lines, bull_intra_laol_lines, bear_scalp_laol_lines, bull_scalp_laol_lines",
+    "Add HcsBoxData arrays: hcs_boxes_bear, hcs_boxes_bull",
+    "Add RrBoxSet arrays: rr_boxes_bear, rr_boxes_bull",
+    "Add LastValidInfo globals: entry_bear_lv, entry_bull_lv, scalp_bear_lv, scalp_bull_lv, intra_bear_lv, intra_bull_lv",
+    "Add forming/display state variables: bear_forming_rr objects, bull_forming_rr objects, last_bear/bull forming bars, final_entry variables, intra_negating variables, laol break time variables",
+    "Add TF_LABELS[TF_COUNT] and TF_CATEGORIES[TF_COUNT] string arrays",
+    "Add unique object name counter variable for generating unique MT5 object names",
+    "Commit and push with message 'feat: STX Edge MT5 Part 2/10 - Global arrays and state variables'"
+  ],
+  "acceptance_criteria": [
+    "All global arrays from Pine Script are declared with correct types",
+    "Dynamic array management is properly set up for TrackedBox, LaolLineData, HcsBoxData, RrBoxSet",
+    "All LastValidInfo structs are initialized",
+    "Code compiles logically with Part 1 (no undefined references)"
+  ],
+  "verification": [
+    "Read the file and count that all ~60+ arrays are declared",
+    "Verify array types match the struct definitions from Part 1"
+  ],
+  "blocked_reason": null,
+  "findings": "Added 236 lines of global state arrays and variables to STX_Edge.mq5 (now 524 lines total). All arrays from Pine Script source are accounted for: 14 pattern detection bool arrays, 6 timeframe data arrays, 2 SeqState arrays, 10 HCS arrays, 8 third/laol step tracking arrays, 12 retesting arrays, 2 LAOL candle arrays, 25 TrackedBox arrays with counts, 6 LaolLineData arrays with counts, 2 HcsBoxData arrays with counts, 2 RrBoxSet arrays with counts, 6 LastValidInfo instances, forming/display variables, LAOL break time tracking, XLAOL arrays, 7 display text arrays, forming type tracking, and global utility variables. Pushed directly to main branch."
+}

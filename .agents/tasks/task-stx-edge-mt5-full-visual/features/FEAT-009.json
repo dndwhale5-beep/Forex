@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-009",
+  "type": "feat",
+  "description": "Part 9/10: Add the main processing loop - setup evaluation (S1-S4, INTRA conditions), negation detection, Last Valid Info tracking, and display text generation.",
+  "status": "completed",
+  "steps": [
+    "Implement the main per-TF processing loop that populates forming/retesting arrays for entry/scalp/intra",
+    "Implement S1-S4 base setup evaluation logic for both bear and bull",
+    "Implement INTRA condition evaluation (EST retest, EM forming, LV aligned, Negation, Zone)",
+    "Implement intra negation detection logic (checking counter-direction EM patterns in INTRA TFs)",
+    "Implement Last Valid Info tracking (CheckBreak, ResolveLastValid functions)",
+    "Implement setup display text generation (bear_setup_display, bull_setup_display)",
+    "Implement Final Entry condition evaluation (all 6 conditions for bear/bull)",
+    "Implement CombineSameTFPatterns() function",
+    "Implement the array reset loop at end of each tick",
+    "Commit and push with message 'feat: STX Edge MT5 Part 9/10 - Main processing loop and setup evaluation'"
+  ],
+  "acceptance_criteria": [
+    "S1-S4 setup conditions evaluate correctly matching Pine Script logic",
+    "INTRA conditions properly check all sub-conditions",
+    "Negation detection works for counter-direction patterns",
+    "Final Entry triggers when all conditions align",
+    "All state arrays are properly reset at end of tick"
+  ],
+  "verification": [
+    "Read the main loop and compare logic flow to Pine Script",
+    "Verify S1-S4 conditions match exactly"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented as part of complete single-file rewrite in FEAT-006."
+}

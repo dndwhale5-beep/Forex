@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-010",
+  "type": "feat",
+  "description": "Part 10/10: Add OnInit(), OnDeinit(), OnCalculate() functions to tie everything together. Add alert system, XLAOL line management, cleanup on deinit, and final integration.",
+  "status": "completed",
+  "steps": [
+    "Implement OnInit() - initialize all arrays to default values, set TF_LABELS and TF_CATEGORIES arrays, initialize seq_states",
+    "Implement OnDeinit() - clean up all MT5 chart objects by iterating through all tracked boxes, LAOL lines, HCS boxes, RR boxes, and XLAOL lines, calling ObjectDelete for each",
+    "Implement OnCalculate() - the main tick handler that: 1) Retrieves MTF data for all 25 TFs, 2) Calls CalculatePatterns for each TF, 3) Runs the main processing loop (third/laol step detection, HCS detection, box creation, box management), 4) Updates LAOL lines, 5) Manages HCS boxes, 6) Evaluates setups and generates display text, 7) Handles RR box creation/deletion, 8) Manages XLAOL lines (extend, break detection, deletion), 9) Sends alerts, 10) Resets per-tick arrays",
+    "Implement XLAOL line management in OnCalculate(): Extend all _xlaol lines by updating x2 to current bar. Check if price hit level (bear: high > level, bull: low < level). Delete hit lines and their labels. Track which categories were hit for alerts.",
+    "Implement Alert system using MT5 Alert() function - matching all alert() and alertcondition() calls from Pine Script: BEAR FORMING, BEAR CONFIRMED, BULL FORMING, BULL CONFIRMED, FINAL ENTRY BEAR, FINAL ENTRY BULL, ENTRY LAOL BEAR/BULL TAKEN, SCALP LAOL BEAR/BULL TAKEN",
+    "Add proper bar counting (equivalent of bar_index) using a global counter incremented in OnCalculate",
+    "Add pip_value calculation: SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE) * 10",
+    "Ensure all visual objects are properly updated on each tick (extend boxes to right, update LAOL line positions)",
+    "Do a final review of the entire file to ensure no compilation errors, proper function call order, no undefined variables",
+    "Commit and push with message 'feat: STX Edge MT5 Part 10/10 - OnInit/OnCalculate/OnDeinit and alerts'"
+  ],
+  "acceptance_criteria": [
+    "OnInit properly initializes all state",
+    "OnDeinit cleans up all chart objects",
+    "OnCalculate processes each tick correctly in the right order",
+    "All alerts are fired matching Pine Script conditions",
+    "XLAOL lines extend and break correctly",
+    "The file is complete and should compile in MetaEditor without errors"
+  ],
+  "verification": [
+    "Read the complete file and verify logical flow",
+    "Verify no undefined function calls or variables",
+    "Verify the file is syntactically valid MQL5"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented as part of complete single-file rewrite in FEAT-006."
+}

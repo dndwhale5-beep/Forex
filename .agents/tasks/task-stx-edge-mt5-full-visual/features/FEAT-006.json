@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-006",
+  "type": "feat",
+  "description": "Part 6/10: Add LAOL line management functions with FULL VISUAL drawing - dashed lines with labels, merge logic, cross-category merge, break detection, and scan-in-box functionality.",
+  "status": "completed",
+  "steps": [
+    "Implement AddOrMergeLaolLine() function (f_add_or_merge_laol_line equivalent) - checks tolerance (mintick*2), merges if same level exists, creates new LaolLineData if not. Does NOT create visual object immediately.",
+    "Implement UpdateLaolLines() function (f_update_laol_lines equivalent) - checks if price crossed LAOL level (bear: price > level, bull: price < level). Marks broken, tracks break_bar. After LAOL_DELETE_DELAY bars past break, removes from array AND deletes the MT5 line/label objects. Returns break times and TF labels for all categories.",
+    "Implement GetBrokenLaol() and GetBrokenLaolRecent() functions",
+    "Implement MergeCrossCategory() function (f_merge_cross_category equivalent) - merges LAOL lines across entry/scalp/intra categories when at same price level",
+    "Implement ScanLaolInBox() function (f_scan_laol_in_box equivalent) - WITH FULL VISUAL DRAWING. When LAOL is found inside an established EM box: Creates a dashed line (OBJ_TREND) from bar_index to bar_index+offset (15 for entry, 30 for scalp) at the LAOL level. Color: blue for ENTRY LAOL, green for SCALP LAOL. Creates a label (OBJ_TEXT) at the end of the line showing 'ENTRY LAOL [tf_labels] in SCALP' or similar text. White text on colored background. Checks for duplicates before creating.",
+    "Implement LAOL line visual updates on each tick: extend the line's right side and move label position to stay at the end. Use ObjectSetInteger for x2 coordinate.",
+    "Implement LAOL line visual deletion when price hits the line level (the _xlaol hit detection from Pine Script)",
+    "Store LAOL visual objects in arrays (_xlaol_lines, _xlaol_labels, etc.) and manage their lifecycle",
+    "Commit and push with message 'feat: STX Edge MT5 Part 6/10 - LAOL line management with visual drawing'"
+  ],
+  "acceptance_criteria": [
+    "LAOL lines appear as dashed lines on chart at correct price levels",
+    "Labels show correct text (category, TF labels, box type)",
+    "Lines extend to the right on each tick",
+    "Lines are deleted when price crosses them",
+    "Merge logic correctly combines same-level LAOLs across categories",
+    "LAOL lines inside boxes are properly detected and drawn"
+  ],
+  "verification": [
+    "Read the LAOL functions and verify they match Pine Script logic",
+    "Verify OBJ_TREND creation with STYLE_DASH and correct colors"
+  ],
+  "blocked_reason": null,
+  "findings": "Complete rewrite of STX_Edge.mq5 as single file (3177 lines). All visual elements present: zone boxes with blue/green/red colors, HCS boxes orange/blue, LAOL dashed lines with labels, RR boxes red SL/green TP, border style changes dashed->solid on retest. All algorithm logic: 25 TF pattern detection, TBE sequence, zone state machine, LAOL management, negation detection, S1-S4 + INTRA alignment, Final Entry signals. Braces and parentheses perfectly balanced. Alerts and SendNotification calls included."
+}

@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-007",
+  "type": "feat",
+  "description": "Part 7/10: Add HCS (Higher Category Signal) box management with FULL VISUAL drawing - orange bear boxes, blue bull boxes with thick borders, text labels showing 'HCS BROKEN [tf]'.",
+  "status": "completed",
+  "steps": [
+    "Implement ManageHCSBoxes() function (f_manage_hcs_boxes equivalent) - manages HCS box lifecycle with full visual rendering",
+    "For bear HCS boxes: When price breaks above top_val, set is_broken=true and CREATE the visual rectangle (OBJ_RECTANGLE) with orange fill (80% transparent), orange border (30% transparent), border_width=2, STYLE_SOLID. Add text object showing 'HCS BROKEN [tf_label]' in white, positioned at top-left of box.",
+    "For bull HCS boxes: Same but with blue (#2196F3) fill (80% transparent) and blue border (30% transparent)",
+    "Handle HCS box retesting - when price re-enters the box zone after breaking, track retesting state",
+    "Handle HCS box invalidation - for bear: delete when low < bottom_val, for bull: delete when high > top_val. Call ObjectDelete for both rectangle and text.",
+    "Handle HCS box shrinking - adjust top_val/bottom_val when price partially enters the zone, update rectangle coordinates with ObjectSetDouble",
+    "Extend HCS boxes to the right edge (same extend.right behavior as tracked boxes)",
+    "Implement HCS detection in the main TF processing loop - detect when FU/SN patterns occur inside existing FU/SN boxes at M50/M60 timeframes, create HcsBoxData and push to hcs_boxes_bear/bull arrays",
+    "Commit and push with message 'feat: STX Edge MT5 Part 7/10 - HCS box management with visual drawing'"
+  ],
+  "acceptance_criteria": [
+    "HCS boxes appear on chart as colored rectangles (orange for bear, blue for bull)",
+    "Box borders are 2px solid",
+    "Text 'HCS BROKEN [tf]' appears inside the box",
+    "Boxes are deleted when price invalidates them",
+    "Box shrinking correctly adjusts visual coordinates",
+    "Only M50/M60 timeframes trigger HCS box creation (first HCS count only)"
+  ],
+  "verification": [
+    "Read ManageHCSBoxes and verify visual creation matches Pine Script exactly",
+    "Verify color values match: orange for bear, #2196F3 for bull"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented as part of complete single-file rewrite in FEAT-006."
+}

@@ -1,0 +1,28 @@
+{
+  "id": "FEAT-005",
+  "type": "feat",
+  "description": "Part 5/10: Add box management functions - f_create_box, f_manage_tf_boxes with FULL VISUAL drawing (ObjectCreate rectangles with correct colors, border styles switching from dashed to solid on retest).",
+  "status": "completed",
+  "steps": [
+    "Implement CreateTrackedBox() function (f_create_box equivalent) - checks for duplicates, creates TrackedBox struct, assigns colors based on category (entry=blue, scalp=green, intra=red), assigns EM vs non-EM visibility. Does NOT create the MT5 object yet (only when state becomes FORMING with confirmed bar).",
+    "Implement ManageTFBoxes() function (f_manage_tf_boxes equivalent) - the large box state machine. Handles all states: FORMING -> ESTABLISHED -> EST_RETEST/FORMING_FRESH/RESPECTED. Creates MT5 rectangle object when box is first confirmed (using CreateRectangle helper). Updates border style: STYLE_DASH when unretested, STYLE_SOLID when retested. Updates border color transparency (100% when unretested for EM patterns, normal when retested). Handles box invalidation (delete when price breaks through). Handles box shrinking (bottom_val/top_val adjustment on retest). Returns [bear_retesting, bull_retesting, bear_retest_pattern, bull_retest_pattern, bear_retest_level, bull_retest_level, bear_est_retest, bull_est_retest, bear_est_retest_valid, bull_est_retest_valid].",
+    "In ManageTFBoxes(), when creating rectangle: use OBJ_RECTANGLE with left time = creation_time, right time = current time + extend equivalent (use time + 50*PeriodSeconds()), top/bottom = price levels. Set OBJPROP_COLOR for border, OBJPROP_BGCOLOR for fill, OBJPROP_STYLE for dash/solid, OBJPROP_BACK=true, OBJPROP_WIDTH=1. For EM patterns show text using additional OBJ_TEXT object.",
+    "Implement box deletion - when price breaks above bear box top or below bull box bottom, call ObjectDelete and remove from array",
+    "Implement box property updates - when border style changes from dashed to solid, call ObjectSetInteger(OBJPROP_STYLE). When box coordinates change (shrinking), call ObjectSetDouble for OBJPROP_PRICE/OBJPROP_PRICE2",
+    "Implement the extend-right behavior: on each tick, update the right side time of all active boxes to keep them extended to the right edge of the chart",
+    "Commit and push with message 'feat: STX Edge MT5 Part 5/10 - Zone box creation and management with visuals'"
+  ],
+  "acceptance_criteria": [
+    "Zone rectangles are created on chart with correct colors matching Pine Script",
+    "Border style correctly switches from dashed to solid when box is retested",
+    "Box shrinking works correctly (adjusting coordinates when price enters the zone)",
+    "Box deletion works when price invalidates the zone",
+    "Boxes extend to right edge of chart"
+  ],
+  "verification": [
+    "Read the ManageTFBoxes function and verify all state transitions match Pine Script",
+    "Verify ObjectCreate/ObjectSet calls use correct OBJPROP constants"
+  ],
+  "blocked_reason": null,
+  "findings": "Successfully appended 573 lines implementing CreateTrackedBox, ManageTFBoxes, and ExtendAllBoxes. Braces verified balanced (168/168). Color constants are uint but struct uses color type so cast with (color). The ManageTFBoxes function faithfully translates the Pine Script state machine with all states: FORMING, ESTABLISHED, FORMING_FRESH, EST_RETEST, RESPECTED. Protection time calculated as tf_minutes*60*protection_bars (seconds) added to p_t datetime. Non-EM boxes get clrNONE for invisible border/fill."
+}

@@ -1,0 +1,38 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Part 3/10: Add utility/helper functions - pattern string generation, timeframe helpers, array management, and visual object creation/deletion helpers for MT5 (ObjectCreate wrappers for rectangles, lines, labels).",
+  "status": "completed",
+  "steps": [
+    "Add FormatTFLabel() function - converts minutes to label like '5m' or '1H'",
+    "Add IsEntry()/IsScalp()/IsIntra() helper functions based on minute ranges",
+    "Add GetFullCategory() function returning 'ENTRY'/'SCALP'/'INTRA'/'NONE'",
+    "Add PatternStr() function - builds pattern string from booleans (third, first, laol, sn, sn_dbl, fu, tbe, hcs, hcs_forming) exactly as f_pattern_str in Pine",
+    "Add IsFuPattern() and IsEmPattern() functions matching f_is_fu_pattern and f_is_em_pattern",
+    "Add HasBothWicks(), IsInsideBar(), BullishIBConfirmation(), BearishIBConfirmation() functions",
+    "Add CreateUniqueObjName() function that generates unique object names using a counter",
+    "Add CreateRectangle() wrapper function - calls ObjectCreate with OBJ_RECTANGLE, sets border color, fill color, back flag, border style (STYLE_DASH or STYLE_SOLID), border width. Parameters: name, time1, price1, time2, price2, clr_border, clr_fill, border_style, border_width, text",
+    "Add UpdateRectangle() function - modifies existing rectangle properties (color, border style, coordinates)",
+    "Add DeleteRectangle() function - calls ObjectDelete",
+    "Add CreateTrendLine() wrapper - for LAOL lines and pip lines. OBJ_TREND with style (dashed/dotted/solid), color, width",
+    "Add CreateLabel() wrapper - OBJ_TEXT or OBJ_LABEL for text labels on chart with position, color, font size",
+    "Add DeleteObject() generic wrapper",
+    "Add PushUnique() function for string arrays (equivalent of f_push_unique)",
+    "Add TimeAgo() function matching f_time_ago - converts elapsed time to readable string",
+    "Add GetTFBoxes() function that returns pointer/reference to the correct TF box array by index (0-24)",
+    "Add ArrayRemoveAt() template functions for each struct array type (TrackedBox, LaolLineData, HcsBoxData, RrBoxSet) since MQL5 doesn't have generic array.remove",
+    "Commit and push with message 'feat: STX Edge MT5 Part 3/10 - Helper functions and MT5 object wrappers'"
+  ],
+  "acceptance_criteria": [
+    "All helper functions have correct MQL5 signatures and implementations",
+    "MT5 object creation functions properly set all visual properties (colors with alpha, border styles)",
+    "Object names are unique to prevent conflicts",
+    "Functions match the logic of their Pine Script equivalents exactly"
+  ],
+  "verification": [
+    "Read the file and verify each helper function is implemented",
+    "Verify ObjectCreate calls use correct OBJ_* constants and property setters"
+  ],
+  "blocked_reason": null,
+  "findings": "Implemented 20+ helper functions including: GenerateObjName, FormatTFLabel, IsEntry, GetFullCategory, PatternStr, IsFuPattern, IsEmPattern, HasBothWicks, IsInsideBar, BullishIBConfirmation, BearishIBConfirmation, CreateRectangleObj, UpdateRectCoords, SetRectBorderStyle, CreateTrendLineObj, CreateTextObj, DeleteObj, TimeAgoStr, PushUniqueStr, CheckBreak, ResolveLastValid, FindNextExtremeCandle, GetTFBoxesCount, SetTFBoxesCount, GetTFBox, SetTFBox, AddTFBox, RemoveTFBox, RemoveLaolLine, RemoveHcsBox, RemoveRrBox, DeleteAllObjects. File now 1164 lines with balanced braces. Used switch-case pattern for TF box access since MQL5 cannot return array references."
+}

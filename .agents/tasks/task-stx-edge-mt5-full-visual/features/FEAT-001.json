@@ -1,0 +1,35 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Part 1/10: Create the MQ5 file with header, properties, input parameters, constants, timeframe definitions, enumerations, and struct definitions (tracked_box, laol_line_data, last_valid_info, hcs_box_data, rr_box_set, seq_state). This is the foundation that all other parts build upon.",
+  "status": "completed",
+  "steps": [
+    "Delete existing /projects/sandbox/Forex/STX_Edge.mq5 and create a new file",
+    "Add MQ5 header with #property indicator_chart_window, copyright, version",
+    "Add all input parameters matching Pine Script: InpSoftStart, InpTPMultiplier, InpSetupLookback, InpPipTarget, InpLaolDeleteDelay, InpShowFinalEntry, InpShowFinalS1S4, InpShowFinalIntraEst, InpShowFinalIntraEM, InpShowFinalIntraLV, InpShowFinalIntraNeg, InpFinalEntryMultiLaol, InpShowIntraEstRetest, InpShowIntraEMForming, InpShowIntraLVAligned, InpShowIntraNegation, InpShowHCSBoxes, InpShowSetupsS1S4",
+    "Define constants: TF_COUNT=25, ENTRY_MIN_IDX=0, ENTRY_MAX_IDX=4, SCALP_MIN_IDX=5, SCALP_MAX_IDX=15, INTRA_MIN_IDX=16, INTRA_MAX_IDX=24",
+    "Define TF_MINUTES array and GetTimeframe() function mapping minutes to ENUM_TIMEFRAMES (M7->M6, M8->M6, M9->M10, M11->M10, M13->M12, M14->M15, M35->M30, M40->M30, M45->H1, M50->H1, M55->H1, M90->H1, M100->H2)",
+    "Define ENUM_TF_CATEGORY enum and GetCategory()/GetCategoryStr() functions",
+    "Define struct SeqState with step, level, body, start_time fields",
+    "Define struct TrackedBox with ALL fields from Pine Script type tracked_box: direction, state, top_val, bottom_val, original_top, original_bottom, creation_time, protection_end_time, pattern_text, timeframe, obj_name (string for MT5 object name), has_est_retest, retest_type, protection_active, hcs_count, base_pattern, box_clr, border_clr, has_been_retested, is_intra, est_wick_high, est_wick_low, completed_est_retest, is_em_forming, just_established",
+    "Define struct LaolLineData with ALL fields: obj_name, label_name, level, tf_labels, creation_bar, is_bear, is_broken, break_bar, tf_count, has_entry, has_scalp, has_intra",
+    "Define struct LastValidInfo with pattern_text, original_text, level, est_time, direction, is_broken",
+    "Define struct HcsBoxData with obj_name, top_val, bottom_val, creation_bar, tf_label, direction, is_broken",
+    "Define struct RrBoxSet with sl_obj_name, tp_obj_name, pip_obj_name, direction, sl_level, creation_bar",
+    "Define color constants: entry_box_color (blue 95% transparent), entry_border_color (blue 50%), scalp_box_color (green 90%), scalp_border_color (green 50%), intra_box_color (red 95%), intra_border_color (red 50%), hcs_bear_bg (orange 80%), hcs_bear_border (orange 30%), hcs_bull_bg (#2196F3 80%), hcs_bull_border (#2196F3 30%), rr_sl_color (red 70%), rr_tp_color (green 70%)",
+    "Commit and push this part to GitHub with message 'feat: STX Edge MT5 Part 1/10 - Header, inputs, structs'"
+  ],
+  "acceptance_criteria": [
+    "File /projects/sandbox/Forex/STX_Edge.mq5 exists with valid MQL5 syntax for all struct definitions",
+    "All 18 input parameters are defined with correct types and defaults",
+    "All 6 struct types are properly defined with all fields matching Pine Script types",
+    "All color constants are defined with proper ARGB values for MT5",
+    "Code is committed and pushed to GitHub main branch"
+  ],
+  "verification": [
+    "Read the file and verify all structs have correct field definitions",
+    "Verify the file has proper MQL5 syntax (no Pine Script syntax remaining)"
+  ],
+  "blocked_reason": null,
+  "findings": "File created with 288 lines. All 18 inputs, 6 structs, constants, TF_MINUTES array, GetTimeframe(), GetCategory(), GetCategoryStr(), ENUM_TF_CATEGORY enum, and 12 ARGB color constants are defined. ColorToARGB uses alpha parameter where 0=opaque and 255=fully transparent (so 95% transparency = alpha 12 which is 255*0.05). Pushed directly to main branch as instructed."
+}

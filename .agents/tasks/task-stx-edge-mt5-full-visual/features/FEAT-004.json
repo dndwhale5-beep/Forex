@@ -1,0 +1,26 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Part 4/10: Add the seq_state update function (f_update_seq), pattern calculation function (f_calculate_patterns), and multi-timeframe data retrieval using iOpen/iHigh/iLow/iClose/iTime for all 25 timeframes.",
+  "status": "completed",
+  "steps": [
+    "Implement UpdateSeq() function - exact translation of f_update_seq with all step transitions (0->1->2->3->4->5), level tracking, timeout check (5 candle timeout), and counter pattern detection",
+    "Implement CalculatePatterns() function - exact translation of f_calculate_patterns. Takes index and OHLCT data for current bar, previous bar, and 2-bars-ago. Detects: bear_x3, bull_x3, sn_bear, sn_bull, bear_first_em, bull_first_em, bear_laol_first, bull_laol_first, fu_bear_em, fu_bull_em, bear_laol_candle (inside bar), bull_laol_candle. Sets all detection arrays.",
+    "Implement GetTFData() function - retrieves OHLCT data for a specific timeframe using iOpen(), iHigh(), iLow(), iClose(), iTime() with proper bar shifting ([0], [1], [2] bars). Handles the isConfirmed equivalent by checking if the bar time has changed.",
+    "Add timeframe confirmation tracking - maintain previous bar times per TF to detect new confirmed bars (equivalent of barstate.isconfirmed in request.security)",
+    "Add the main data retrieval loop that calls GetTFData() for all 25 timeframes and then calls CalculatePatterns() for each (with soft_start check for INTRA TFs 16-24)",
+    "Commit and push with message 'feat: STX Edge MT5 Part 4/10 - Pattern detection and MTF data retrieval'"
+  ],
+  "acceptance_criteria": [
+    "UpdateSeq() correctly implements all 6 states (0-5) with proper transitions",
+    "CalculatePatterns() detects all pattern types: X3 (bear/bull), SN, First EM, LAOL first, FU, inside bar",
+    "Multi-timeframe data is correctly retrieved for all 25 TFs",
+    "Bar confirmation logic properly identifies new confirmed bars on each timeframe"
+  ],
+  "verification": [
+    "Read the UpdateSeq and CalculatePatterns functions and compare logic to Pine Script original",
+    "Verify iOpen/iHigh/iLow/iClose calls use correct timeframe enums and bar indices"
+  ],
+  "blocked_reason": null,
+  "findings": "Added 312 lines. UpdateSeq implements all 6 states (0-5) with proper transitions matching Pine f_update_seq. CalculatePatterns detects X3 (bear/bull), SN, First EM, LAOL first, FU, inside bar. GetTFData retrieves data using iOpen/iHigh/iLow/iClose/iTime with bar confirmation via g_prev_tf_time tracking. RetrieveAllTFData processes all 25 TFs with soft_start gating for INTRA (idx 16-24). File now 1476 lines."
+}

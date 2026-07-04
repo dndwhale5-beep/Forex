@@ -1,0 +1,19 @@
+{
+  "project_type": "MQL5 Indicator for MetaTrader 5 (converted from TradingView Pine Script v6)",
+  "language": "MQL5",
+  "build_system": "MetaTrader 5 compiler (not available in sandbox - use AST/syntax validation only)",
+  "test_framework": "No automated tests - MT5 indicators are tested visually in MetaTrader terminal",
+  "build_command": "N/A - MT5 compilation happens inside MetaTrader platform",
+  "test_command": "N/A - manual testing in MT5 terminal",
+  "verification_instructions": "Verify that the .mq5 file has valid MQL5 syntax, proper structure, all visual elements from Pine Script are preserved",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "No setup needed - direct file creation",
+  "environment_constraints": "Cannot compile MQL5 in sandbox. Cannot run MetaTrader. Validation is limited to syntax checks and code review. The file must be syntactically valid MQL5 that will compile in MetaEditor.",
+  "contribution_requirements": "Write file to /projects/sandbox/Forex/STX_Edge.mq5, commit and push to GitHub main branch",
+  "key_patterns": "Pine Script uses box.new(), line.new(), label.new() for visuals. MT5 uses ObjectCreate() with OBJ_RECTANGLE, OBJ_TREND, OBJ_LABEL. Pine Script types (tracked_box, laol_line_data, etc.) become MQL5 structs. Pine arrays become dynamic arrays or fixed arrays. request.security() becomes iOpen/iHigh/iLow/iClose/iTime on different timeframes.",
+  "relevant_files": [
+    "/projects/sandbox/Forex/STX Edge.txt",
+    "/projects/sandbox/Forex/STX_Edge.mq5"
+  ],
+  "directory_structure": "Root contains STX Edge.txt (Pine Script source, 2293 lines) and STX_Edge.mq5 (output file). Other folders are unrelated trading education materials."
+}
